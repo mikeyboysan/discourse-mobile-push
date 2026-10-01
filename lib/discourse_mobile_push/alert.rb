@@ -6,6 +6,7 @@ module DiscourseMobilePush
       :notification_type,
       :notification_type_id,
       :url,
+      :slug_free_url,
       :topic_id,
       :topic_title,
       :post_number,

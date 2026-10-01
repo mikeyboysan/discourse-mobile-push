@@ -2,7 +2,7 @@
 
 Reference for apps that register devices with `discourse-mobile-push`. The API is versioned in the path; breaking changes ship under a new version (`/mobile-push/v2/...`) and v1 keeps working.
 
-Within v1, new optional request fields, response fields, push `data` keys and `data.type` values may be added. Apps should ignore keys and types they don't recognise.
+Within v1, new optional request fields, response fields, push `data` keys and `data.type` values may be added. Apps should ignore keys and types they don't recognise. The path of the push `url` isn't part of the contract and can differ by privacy mode: open it as it is, and use the IDs in `data` for in-app routing rather than parsing the URL.
 
 All endpoints return JSON. Send request bodies as JSON (`Content-Type: application/json`) or form data.
 
@@ -34,7 +34,7 @@ A device is tied to the credential of its latest registration:
 - **Session cookie**: the device stops receiving notifications when the session ends: logout, logging out of all devices, a password change, or session expiry.
 - **Admin API key**: the device isn't tied to a credential.
 
-A stopped device no longer appears in [List devices](#list-devices) and is deleted within a day. Registering again (as apps do on every start) ties the device to the credential used for that request. An administrator can also remove any device from the admin diagnostics.
+A stopped device no longer appears in [List devices](#list-devices) or the admin diagnostics, and is deleted within a day. Registering again (as apps do on every start) ties the device to the credential used for that request. An administrator can also remove any device from the admin diagnostics; the app's next registration adds it back if its credential is still valid.
 
 ## Register a device
 
@@ -123,7 +123,7 @@ Each Discourse push notification arrives as an FCM message with a `notification`
 | `type` | yes | `notification`, or `test` for an administrator's test notification (see below) |
 | `notification_type` | for `notification` | Discourse notification type name, e.g. `replied`, `mentioned`, `private_message`, `chat_mention`; `unknown` for types Discourse does not name |
 | `notification_type_id` | when known | Discourse's numeric notification type, as a string |
-| `url` | yes | Absolute URL of the content to open, always on the forum's own host. Falls back to the forum's base URL when the notification has no link. In `generic` privacy mode it carries no topic or channel names (see below) |
+| `url` | yes | Absolute URL of the content to open, always on the forum's own host. Falls back to the forum's base URL when the notification has no link. In `generic` privacy mode it carries no topic or channel names (see below). Don't parse its path; route by the IDs |
 | `topic_id` | for post notifications | Topic ID |
 | `post_number` | for post notifications | Post number within the topic |
 | `post_id` | for post notifications | Post ID |

@@ -9,6 +9,8 @@ Experiential patterns from practice. Complements standards (what should be) with
 - 2026-10-01 [review] New user-owned tables slip through design without deletion rules — decide user deletion/anonymisation behaviour (FK cascade, cleanup hook) at design time.
 - 2026-10-01 [review] Health verdicts shown in more than one place (dashboard problem check, admin page) belong in a core use case that returns a reason, not in the problem check adapter.
 - 2026-10-01 [review] Lists with inline delete actions and offset-based paging skip a record on the next page after each delete — decide the paging scheme (cursor vs offset) at design time.
+- 2026-10-01 [review] A new revocation or visibility rule (e.g. "signed-out devices get nothing") must cover every consumer of the records — admin lists, counts and test sends too, not only the user-facing paths.
+- 2026-10-01 [review] Client-facing contracts should state from v1 which values are opaque (e.g. "don't parse `url`; route by the IDs"), so a later format change in one mode isn't a breaking change.
 - 2026-10-01 [review] When adding a channel alongside a core feature (mobile push next to browser push), list where its behaviour differs from core (delays, filters, preferences) and document those differences.
 - 2026-10-01 [review] Provider errors that may mean "one recipient" or "whole configuration" (e.g. FCM `SENDER_ID_MISMATCH`) — classify as configuration, but make health alerts require breadth (several recipients) so one stray token cannot raise a permanent alarm.
 
@@ -29,6 +31,7 @@ Experiential patterns from practice. Complements standards (what should be) with
 - 2026-10-01 [implementation] FCM HTTP v1 `android.priority` — send lowercase `"high"`/`"normal"` as in Firebase's examples, despite the REST reference listing enum names `HIGH`/`NORMAL`.
 - 2026-10-01 [implementation] rubocop-discourse `Discourse/Plugins/CallRequiresPlugin` forces `requires_plugin` on every plugin controller, admin ones included — admin endpoints 404 while the plugin is disabled, so don't design admin flows that need them before enabling.
 - 2026-10-01 [implementation] Discourse plugin problem checks — `app/services/problem_check/<name>.rb`, `require_relative` + `register_problem_check` in `after_initialize`, locale `dashboard.problem.<identifier>` (interpolates `%{base_path}`); without `perform_every` the check runs on every dashboard load, so keep it to cheap queries.
+- 2026-10-01 [review] Core's request-spec `sign_out` helper (`delete "/session"`) matches no route, so it never logs out; to test a real logout call `delete "/session/#{user.encoded_username}.json"` and assert the auth token is gone.
 - 2026-10-01 [implementation] Discourse `RateLimiter` skips staff unless `apply_limit_to_staff: true` (needed for admin-only actions); rate-limit specs must call `RateLimiter.enable`.
 - 2026-10-01 [review] Matching on usernames — resolve through Discourse (`User.find_by_username` / `User.normalize_username`), never a hand-rolled `downcase` (Unicode usernames).
 - 2026-10-01 [implementation] Red lint stage — diagnose by running `rubocop --format simple` / `script/i18n_lint.rb` directly in the test container rather than opening the stage log.

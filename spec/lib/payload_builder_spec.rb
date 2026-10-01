@@ -13,6 +13,7 @@ RSpec.describe DiscourseMobilePush::PayloadBuilder do
         notification_type: "replied",
         notification_type_id: Notification.types[:replied],
         url: "http://test.localhost/t/hello/10/2",
+        slug_free_url: "http://test.localhost/t/10/2",
         topic_id: 10,
         topic_title: "Hello",
         post_number: 2,
@@ -79,31 +80,12 @@ RSpec.describe DiscourseMobilePush::PayloadBuilder do
       expect(build.data).to include("topic_id" => "10", "post_number" => "2", "post_id" => "20")
     end
 
-    it "links to the post without the topic slug" do
-      expect(build.data["url"]).to eq("#{Discourse.base_url}/t/10/2")
+    it "uses the link without topic or channel names" do
+      expect(build.data["url"]).to eq("http://test.localhost/t/10/2")
     end
 
-    it "links to the topic without a post number" do
-      expect(build(post_number: nil).data["url"]).to eq("#{Discourse.base_url}/t/10")
-    end
-
-    it "links to chat without the channel slug" do
-      message =
-        build(
-          notification_type: "chat_mention",
-          url: "http://test.localhost/chat/c/secret-plans/5/77",
-          topic_id: nil,
-          post_number: nil,
-          channel_id: 5,
-        )
-
-      expect(message.data["url"]).to eq("http://test.localhost/chat/c/-/5/77")
-    end
-
-    it "links to the site for other URLs" do
-      message = build(url: "http://test.localhost/badges/1/first-like", topic_id: nil)
-
-      expect(message.data["url"]).to eq(Discourse.base_url)
+    it "falls back to the site URL when there is no slug-free link" do
+      expect(build(slug_free_url: nil).data["url"]).to eq(Discourse.base_url)
     end
   end
 

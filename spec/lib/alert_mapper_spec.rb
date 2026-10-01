@@ -26,6 +26,7 @@ RSpec.describe DiscourseMobilePush::AlertMapper do
         notification_type: "replied",
         notification_type_id: Notification.types[:replied],
         url: "http://test.localhost/t/hello-world/10/2",
+        slug_free_url: "http://test.localhost/t/10/2",
         topic_id: 10,
         topic_title: "Hello world",
         post_number: 2,
@@ -48,7 +49,7 @@ RSpec.describe DiscourseMobilePush::AlertMapper do
       chat_payload = {
         notification_type: Notification.types[:chat_mention],
         channel_id: 5,
-        post_url: "/chat/c/general/5/99",
+        post_url: "/chat/c/secret-plans/5/99",
         translated_title: "Jane mentioned you in #general",
       }
 
@@ -57,9 +58,26 @@ RSpec.describe DiscourseMobilePush::AlertMapper do
       expect(alert).to have_attributes(
         notification_type: "chat_mention",
         channel_id: 5,
-        url: "http://test.localhost/chat/c/general/5/99",
+        url: "http://test.localhost/chat/c/secret-plans/5/99",
+        slug_free_url: "http://test.localhost/chat/c/-/5/99",
         translated_title: "Jane mentioned you in #general",
       )
+    end
+
+    it "links to a topic without its slug when there is no post number" do
+      expect(alert_for(post_number: nil).slug_free_url).to eq("http://test.localhost/t/10")
+    end
+
+    it "keeps the site's path prefix in the slug-free link" do
+      alert = alert_for(post_url: "/forum/t/x/10/2", base: "http://test.localhost/forum")
+
+      expect(alert.slug_free_url).to eq("http://test.localhost/forum/t/10/2")
+    end
+
+    it "has no slug-free link for other notifications" do
+      alert = alert_for(topic_id: nil, post_url: "/badges/1/first-like")
+
+      expect(alert.slug_free_url).to be_nil
     end
 
     it "names unknown notification types 'unknown'" do

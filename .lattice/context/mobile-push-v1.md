@@ -108,6 +108,10 @@ status: complete
 | 2026-10-01 | [1.1.0, platform review] Admin removal (`DELETE /admin/mobile-push/devices/:id`, staff-logged); the admin list reloads from page 0 after a removal | Review finding: no server-side way to stop a device; reloading avoids the offset-paging skip | User-facing device list in preferences (core's Apps preferences and logout already cover self-service) |
 | 2026-10-01 | [1.1.0, platform review] `generic` mode builds slug-free URLs from IDs (`/t/<topic_id>/<post_number>`, chat `/chat/c/-/...`, otherwise the base URL) | Review finding: slugs leaked titles to Google and Apple | Document the leak only |
 | 2026-10-01 | [1.1.0, platform review] Dev-only paths are `export-ignore`d; the local path and client name were removed from tracked docs | Review findings on hygiene and third-party content; `git clone` installs still contain tracked dev files | Untrack `.agents` / `.lattice` |
+| 2026-10-01 | [Review 1.1.0] Admin diagnostics (list, counts, find for test send and removal) and the health check see only devices with a live credential; the device cap evicts signed-out devices first | "Signed out means gone" everywhere, matching the README's security claim; such devices are deleted within a day anyway | Show signed-out devices with a label and refuse test sends |
+| 2026-10-01 | [Review 1.1.0] `AlertMapper` builds `Alert#slug_free_url` (Discourse URL shapes); `PayloadBuilder` only picks `url` or `slug_free_url` by privacy mode | Discourse-specific knowledge stays in the inbound adapter, policy in core (architecture ambiguity signal) | Build the link in `PayloadBuilder` |
+| 2026-10-01 | [Review 1.1.0] Credential identification (request env keys, `UserApiKey.with_key`) stays in `DevicesController`; credential liveness (`UserApiKey.active`, `UserAuthToken.unexpired`) stays in `Device.with_live_credential`; the session token is used only when it belongs to `current_user` | Two distinct concerns, each in one place: only the controller has the request, only the model filters rows | One credential adapter for both |
+| 2026-10-01 | [Review 1.1.0] The push `url` path is documented as opaque; apps route by IDs | Generic mode changed the path format; not a breaking change because no path format was promised | New API version |
 | 2026-10-01 | [After 1.1.0, finding F6] `.agents/` and `skills-lock.json` are untracked and git-ignored; they stay local only | Third-party review-skill content without a licence notice must not be redistributed, and `export-ignore` doesn't cover `git clone` installs | Add upstream licence notices and keep shipping them |
 ## Open Questions
 
@@ -229,7 +233,7 @@ module DiscourseMobilePush
   class Error < StandardError; end
 
   Alert = Data.define(
-    :notification_type, :notification_type_id, :url,
+    :notification_type, :notification_type_id, :url, :slug_free_url,   # slug_free_url: 1.1.x, built by AlertMapper
     :topic_id, :topic_title, :post_number, :post_id, :channel_id,
     :username, :excerpt, :translated_title,
   )
@@ -294,6 +298,8 @@ class DeviceRegistry
   def remove_signed_out -> Integer               # 1.1.0, daily job
   def invalidate(device:) -> void
 end
+# devices_for, find, search, counts and device_count see only devices with a live credential (1.1.x);
+# the cap evicts signed-out devices before live ones.
 ```
 
 ### Notification Dispatch

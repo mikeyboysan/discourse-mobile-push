@@ -17,16 +17,19 @@ module DiscourseMobilePush
     ].freeze
     UNKNOWN_NOTIFICATION_TYPE = "unknown"
     URL_SCHEMES = %w[http https].freeze
+    CHAT_CHANNEL_SLUG = %r{(/chat/c/)[^/]+/}
 
     class << self
       def relevant_fields(payload) = payload.to_h.stringify_keys.slice(*PAYLOAD_KEYS)
 
       def from_payload(payload, base_url:)
         fields = relevant_fields(payload)
+        url = same_site_url(fields["post_url"], base_url)
         Alert.new(
           notification_type: notification_type_name(fields["notification_type"]),
           notification_type_id: fields["notification_type"],
-          url: same_site_url(fields["post_url"], base_url),
+          url:,
+          slug_free_url: slug_free_url(url, fields, base_url),
           topic_id: fields["topic_id"],
           topic_title: fields["topic_title"],
           post_number: fields["post_number"],
@@ -56,6 +59,16 @@ module DiscourseMobilePush
         absolute.to_s if same_site
       rescue URI::Error
         nil
+      end
+
+      # Topic and chat channel slugs are derived from their titles.
+      def slug_free_url(url, fields, base_url)
+        topic_id = fields["topic_id"]
+        if topic_id.present?
+          "#{base_url}/t/#{[topic_id, fields["post_number"].presence].compact.join("/")}"
+        elsif url&.match?(CHAT_CHANNEL_SLUG)
+          url.sub(CHAT_CHANNEL_SLUG, '\1-/')
+        end
       end
     end
   end

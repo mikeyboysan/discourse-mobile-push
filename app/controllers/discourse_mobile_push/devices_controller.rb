@@ -75,15 +75,17 @@ module DiscourseMobilePush
       )
     end
 
+    # An API key header can authenticate a different user than the session cookie sent with it.
     def current_user_auth_token_id
-      request.env[Auth::DefaultCurrentUserProvider::USER_TOKEN_KEY]&.id
+      token = request.env[Auth::DefaultCurrentUserProvider::USER_TOKEN_KEY]
+      token.id if token&.user_id == current_user.id
     end
 
     def current_user_api_key_id
       return if !request.env[Auth::DefaultCurrentUserProvider::USER_API_KEY_ENV]
 
       key = request.env[Auth::DefaultCurrentUserProvider::USER_API_KEY]
-      UserApiKey.active.with_key(key).where(user: current_user).pick(:id) if key.present?
+      UserApiKey.with_key(key).where(user: current_user).pick(:id) if key.present?
     end
   end
 end

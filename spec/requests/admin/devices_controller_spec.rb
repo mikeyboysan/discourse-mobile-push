@@ -139,6 +139,16 @@ RSpec.describe DiscourseMobilePush::Admin::DevicesController do
         expect(provider.deliveries).to be_empty
       end
 
+      it "is not found for a signed-out device" do
+        revoked_key = Fabricate(:user_api_key, user:, revoked_at: 1.minute.ago)
+        device.update!(user_api_key_id: revoked_key.id)
+
+        perform_request
+
+        expect(response.status).to eq(404)
+        expect(provider.deliveries).to be_empty
+      end
+
       it "rate limits test sends" do
         RateLimiter.enable
         stub_const(described_class, :TEST_SENDS_PER_MINUTE, 1) do

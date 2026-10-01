@@ -49,3 +49,10 @@
 - **Result**: 0 critical, 1 warning, 2 suggestion
 - **Key findings**: immediate delivery vs core's browser-push time window undocumented; staff exemption from the registration rate limit unstated; vague "notification settings" wording
 - **Strengths**: least-privilege Firebase setup; v1 forward-compatibility rule stated
+
+## 2026-10-01 — 1.1.0 release-review fixes (097fb19..851999d)
+- **Scope**: 29 files; core (registry, payload builder), persistence (credential columns, scope), inbound HTTP, scheduled job, admin UI, routes, locales, docs, specs
+- **Atoms**: clean-code, knowledge-priming, architecture, secure-coding, test-quality; custom: Mobile API Compatibility, Discourse Compatibility
+- **Result**: 0 critical, 4 warning, 4 suggestion
+- **Key findings**: admin test send/list/counts ignore the signed-out rule; generic `url` format change (judged non-breaking, docs to call `url` opaque); Discourse URL shapes built in core instead of AlertMapper
+- **Strengths**: credential liveness decided in one query scope used by listener, job, list and prune; real logout verified through core

@@ -137,7 +137,8 @@ The full reference, with request and response examples, matching rules, status c
 - Push tokens are treated as secrets: filtered from request logs, masked in model inspection, never returned by the API or shown in the admin UI (a 12-character fingerprint is used instead), and scrubbed from Firebase error details.
 - The service account key is a secret setting and is never logged.
 - Device registration is rate limited to 20 requests per minute per user (staff are exempt); admin test sends to 10 per minute per admin. Test sends and device removals are recorded in the staff action log.
-- A device stops receiving pushes when the User API key or session it was registered with is revoked, expires or ends.
+- A device stops receiving pushes when the User API key or session it was registered with is revoked, expires or ends. Signed-out devices are hidden from the admin diagnostics and can't receive test sends.
+- Removing a device in the admin diagnostics only lasts until the app registers again with a valid key or session. To cut off a lost or stolen phone, also end its sign-in: **Log Out** on the user's admin page ends all their sessions, and **Revoke Access** under **Apps** in the user's preferences revokes an app's User API key.
 - Devices are deleted with their user, and when the user is anonymised.
 
 See [`SECURITY.md`](SECURITY.md) to report a vulnerability.

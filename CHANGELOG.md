@@ -4,6 +4,21 @@ All notable changes to this plugin are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-01
+
+Fixes from the review of 1.1.0.
+
+### Changed
+
+- The admin diagnostics no longer list or count devices whose User API key or session has ended, and a test send to one returns 404. Such devices get no pushes and are deleted within a day.
+- When a user goes over the device cap, signed-out devices are removed before live ones.
+- `docs/mobile-api.md` now says the push `url` path isn't part of the contract: apps open it as it is and route in-app by the IDs.
+- README explains that removing a device lasts only until the app registers again, and how to cut off a lost phone.
+
+### Fixed
+
+- A session cookie for a different user, sent along with an API key, no longer gets tied to the registered device.
+
 ### Removed
 
 - Third-party AI review-skill files (`.agents/`, `skills-lock.json`) are no longer part of the repository, so `git clone` installs don't receive them.
@@ -43,6 +58,7 @@ First release.
 - Admin dashboard warning when push is enabled but the Firebase credentials are missing or invalid, or Firebase reported configuration errors for several devices in the last day.
 - README with Firebase setup and architecture, contributing guide and security policy.
 
-[Unreleased]: https://github.com/mikeyboysan/discourse-mobile-push/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/mikeyboysan/discourse-mobile-push/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/mikeyboysan/discourse-mobile-push/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/mikeyboysan/discourse-mobile-push/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/mikeyboysan/discourse-mobile-push/releases/tag/v1.0.0

@@ -6,6 +6,8 @@ RSpec.describe DiscourseMobilePush::DeviceRegistry do
   fab!(:user)
   fab!(:other_user, :user)
 
+  let(:deleted_credential_id) { -1 }
+
   def registration(token: "token-1", app_id: "com.example.app", device_identifier: nil, **attrs)
     described_class::Registration.new(
       platform: attrs.fetch(:platform, "android"),
@@ -19,6 +21,7 @@ RSpec.describe DiscourseMobilePush::DeviceRegistry do
   end
 
   def signed_out_devices
+    active_key = Fabricate(:user_api_key, user:)
     revoked_key = Fabricate(:user_api_key, user:, revoked_at: 1.minute.ago)
     expired_key = Fabricate(:user_api_key, user:, expires_at: 1.minute.ago)
     expired_session = UserAuthToken.generate!(user_id: user.id)
@@ -26,9 +29,15 @@ RSpec.describe DiscourseMobilePush::DeviceRegistry do
     [
       Fabricate(:mobile_push_device, user:, user_api_key_id: revoked_key.id),
       Fabricate(:mobile_push_device, user:, user_api_key_id: expired_key.id),
-      Fabricate(:mobile_push_device, user:, user_api_key_id: -1),
+      Fabricate(:mobile_push_device, user:, user_api_key_id: deleted_credential_id),
       Fabricate(:mobile_push_device, user:, user_auth_token_id: expired_session.id),
-      Fabricate(:mobile_push_device, user:, user_auth_token_id: -1),
+      Fabricate(:mobile_push_device, user:, user_auth_token_id: deleted_credential_id),
+      Fabricate(
+        :mobile_push_device,
+        user:,
+        user_api_key_id: active_key.id,
+        user_auth_token_id: expired_session.id,
+      ),
     ]
   end
 
@@ -149,6 +158,23 @@ RSpec.describe DiscourseMobilePush::DeviceRegistry do
       expect(DiscourseMobilePush::Device.exists?(oldest.id)).to eq(false)
     end
 
+    it "evicts signed-out devices before older live ones" do
+      SiteSetting.mobile_push_max_devices_per_user = 2
+      live = Fabricate(:mobile_push_device, user:, last_seen_at: 3.days.ago)
+      signed_out =
+        Fabricate(
+          :mobile_push_device,
+          user:,
+          last_seen_at: 1.hour.ago,
+          user_auth_token_id: deleted_credential_id,
+        )
+
+      registry.register(user:, registration: registration(token: "token-new"))
+
+      expect(DiscourseMobilePush::Device.exists?(signed_out.id)).to eq(false)
+      expect(DiscourseMobilePush::Device.exists?(live.id)).to eq(true)
+    end
+
     it "rejects an app id that is not in the allowlist" do
       SiteSetting.mobile_push_allowed_app_ids = "com.example.allowed"
 
@@ -215,7 +241,7 @@ RSpec.describe DiscourseMobilePush::DeviceRegistry do
       signed_out_devices
       live = signed_in_devices
 
-      expect(registry.remove_signed_out).to eq(5)
+      expect(registry.remove_signed_out).to eq(6)
       expect(DiscourseMobilePush::Device.all).to match_array(live)
     end
   end
@@ -293,6 +319,12 @@ RSpec.describe DiscourseMobilePush::DeviceRegistry do
     it "returns nil for an unknown id" do
       expect(registry.find(device_id: -1)).to be_nil
     end
+
+    it "returns nil for a signed-out device" do
+      device = Fabricate(:mobile_push_device, user_api_key_id: deleted_credential_id)
+
+      expect(registry.find(device_id: device.id)).to be_nil
+    end
   end
 
   describe "#counts" do
@@ -318,6 +350,13 @@ RSpec.describe DiscourseMobilePush::DeviceRegistry do
           { app_id: "com.example.app", app_version: "1.1.0", count: 2 },
         ],
       )
+    end
+
+    it "leaves out signed-out devices" do
+      signed_out_devices
+      signed_in_devices
+
+      expect(registry.counts.total).to eq(3)
     end
 
     it "reports zeros without devices" do
@@ -350,6 +389,16 @@ RSpec.describe DiscourseMobilePush::DeviceRegistry do
 
       expect(page.devices).to eq([own])
       expect(page.total_rows).to eq(1)
+    end
+
+    it "leaves out signed-out devices" do
+      signed_out_devices
+      live = signed_in_devices
+
+      page = registry.search
+
+      expect(page.devices).to match_array(live)
+      expect(page.total_rows).to eq(3)
     end
 
     it "finds nothing when no owner matches" do
