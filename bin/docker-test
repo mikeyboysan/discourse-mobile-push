@@ -2,21 +2,42 @@
 #
 # Runs plugin checks inside the official Discourse test image.
 #
-# Usage: bin/docker-test lint|spec
+# Usage: bin/docker-test lint|spec|prepare
+#
+# `prepare` builds a local snapshot of the test image with the core database
+# already migrated. `spec` uses it when it was built from the local test image,
+# and otherwise falls back to migrating from scratch. Re-run `prepare` after
+# pulling a newer test image.
 #
 # Uses docker.exe when available so it also works from WSL without Docker
-# Desktop's WSL integration. Override the image with DISCOURSE_TEST_IMAGE.
+# Desktop's WSL integration. Override the images with DISCOURSE_TEST_IMAGE and
+# DISCOURSE_TEST_SNAPSHOT.
 
 set -euo pipefail
 
 PLUGIN=discourse-mobile-push
 IMAGE=${DISCOURSE_TEST_IMAGE:-discourse/discourse_test:release}
+SNAPSHOT=${DISCOURSE_TEST_SNAPSHOT:-$PLUGIN-test:snapshot}
+SNAPSHOT_BASE_LABEL=base-image-id
 DOCKER=$(command -v docker.exe || command -v docker)
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 SOURCE=$(wslpath -m "$ROOT" 2>/dev/null || echo "$ROOT")
 PLUGIN_DIR=/var/www/discourse/plugins/$PLUGIN
 # The anonymous volume hides host node_modules, which is slow to traverse through the mount.
 MOUNT=(-v "$SOURCE:$PLUGIN_DIR" -v "$PLUGIN_DIR/node_modules")
+
+image_field() {
+  local value
+  value=$("$DOCKER" image inspect --format "$2" "$1" 2>/dev/null) || return 0
+  printf '%s' "${value%$'\r'}"
+}
+
+snapshot_is_current() {
+  local base_id
+  base_id=$(image_field "$IMAGE" '{{.Id}}')
+  [ -n "$base_id" ] &&
+    [ "$(image_field "$SNAPSHOT" "{{index .Config.Labels \"$SNAPSHOT_BASE_LABEL\"}}")" = "$base_id" ]
+}
 
 case "${1:-}" in
   lint)
@@ -29,12 +50,38 @@ case "${1:-}" in
     "
     ;;
   spec)
+    SPEC_IMAGE=$IMAGE
+    SPEC_ENV=()
+    if snapshot_is_current; then
+      SPEC_IMAGE=$SNAPSHOT
+      SPEC_ENV=(-e SKIP_DB_CREATE=1)
+    else
+      echo "Snapshot $SNAPSHOT missing or stale; migrating from scratch (run bin/docker-test prepare to speed this up)."
+    fi
     "$DOCKER" run --rm "${MOUNT[@]}" \
-      -e NO_UPDATE=1 -e SKIP_LINT=1 -e SKIP_CORE=1 -e RUBY_ONLY=1 -e SINGLE_PLUGIN="$PLUGIN" \
-      "$IMAGE"
+      -e NO_UPDATE=1 -e SKIP_LINT=1 -e SKIP_CORE=1 -e RUBY_ONLY=1 -e SINGLE_PLUGIN="$PLUGIN" "${SPEC_ENV[@]}" \
+      "$SPEC_IMAGE"
+    ;;
+  prepare)
+    CONTAINER=$PLUGIN-test-prepare
+    "$DOCKER" rm -f "$CONTAINER" >/dev/null 2>&1 || true
+    # Postgres runs with fsync off, so it must shut down cleanly before the commit.
+    "$DOCKER" run --name "$CONTAINER" --entrypoint sudo "$IMAGE" -E -u discourse -H bash -c '
+      set -e
+      bundle exec rake docker:test:setup
+      /usr/lib/postgresql/$PG_MAJOR/bin/pg_ctl -D /tmp/test_data/pg stop -m fast
+    '
+    BASE_ID=$(image_field "$IMAGE" '{{.Id}}')
+    ENTRYPOINT=$(image_field "$IMAGE" '{{json .Config.Entrypoint}}')
+    "$DOCKER" commit \
+      --change "ENTRYPOINT $ENTRYPOINT" \
+      --change "LABEL $SNAPSHOT_BASE_LABEL=$BASE_ID" \
+      "$CONTAINER" "$SNAPSHOT" >/dev/null
+    "$DOCKER" rm "$CONTAINER" >/dev/null
+    echo "Built $SNAPSHOT from $IMAGE"
     ;;
   *)
-    echo "usage: bin/docker-test lint|spec" >&2
+    echo "usage: bin/docker-test lint|spec|prepare" >&2
     exit 2
     ;;
 esac

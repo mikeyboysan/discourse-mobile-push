@@ -45,9 +45,12 @@ Full reference, including request and response examples, matching rules and stat
 Tests and linters run inside the official `discourse/discourse_test` Docker image, so no local Ruby is needed:
 
 ```sh
-bin/docker-test lint   # rubocop, syntax_tree, i18n lint
-bin/docker-test spec   # plugin RSpec suite
+bin/docker-test lint     # rubocop, syntax_tree, i18n lint
+bin/docker-test spec     # plugin RSpec suite
+bin/docker-test prepare  # optional: snapshot a migrated core database
 ```
+
+`prepare` saves a local `discourse-mobile-push-test:snapshot` image whose core database is already migrated, which cuts `spec` from about two minutes to under one. `spec` uses the snapshot only when it was built from the local test image; otherwise it migrates from scratch. Re-run `prepare` after pulling a newer `discourse/discourse_test` image.
 
 Frontend linting uses pnpm (`pnpm install`, then `pnpm lint`).
 

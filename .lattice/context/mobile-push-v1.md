@@ -52,6 +52,7 @@ status: approved
 | 2026-10-01 | [Impl slice 1] Token fingerprint = first 12 hex chars of SHA-256; registration rate limit 20/min per user; non-string params rejected with 400 | Not reversible, still distinguishes devices; generous for app start-up/refresh; blocks array/hash injection into string columns | Last N token characters (leaks part of a secret) |
 | 2026-10-01 | [Impl slice 1] `user_id` is `integer` with `add_foreign_key ... on_delete: :cascade`; migration `ActiveRecord::Migration[8.0]`; `required_version: 2026.9.0` | Matches `users.id` type and current core migrations; main-only target | `t.references` (bigint) |
 | 2026-10-01 | [Impl slice 1] Verification gate: `.lattice/verification.yaml` runs `bin/docker-test lint` (rubocop, stree, i18n lint) and `bin/docker-test spec` (plugin RSpec) in `discourse/discourse_test:release` with `NO_UPDATE=1`; `docker.exe` used from WSL; host `node_modules` masked by an anonymous volume; `.gitattributes` forces LF | No local Ruby; WSL has no Docker integration; node_modules over the Windows mount made lint take 6.5 min (now ~10 s); CRLF breaks bash and stree | Full `docker:test` lint (pnpm/playwright install each run) |
+| 2026-10-01 | [Tooling] `bin/docker-test prepare` commits a local snapshot of the test image with the core DB migrated (`docker:test:setup`, clean `pg_ctl stop`); `spec` uses it with `SKIP_DB_CREATE=1` only when its `base-image-id` label matches the local test image, else falls back to a full migrate | Core migrations were ~70 s of the ~110 s spec stage; snapshot run ~45 s. Fresh container per run keeps verification hermetic; label check prevents testing against a stale core | Long-lived container with `docker exec` (state leaks between runs); native WSL2 Discourse install (heavy setup) |
 | 2026-10-01 | [Impl slice 1] Slice 1 complete (skeleton, settings, Device, DeviceRegistry, Device API, user lifecycle); 56 specs green | -- | -- |
 
 ## Open Questions
@@ -338,7 +339,7 @@ Device JSON: {id, platform, app_id, app_version, device_identifier, token_finger
 | `db/migrate/20261001100000_create_mobile_push_devices.rb` | Devices table, indexes, cascading user FK |
 | `app/controllers/discourse_mobile_push/devices_controller.rb` | Inbound HTTP: `/mobile-push/v1/devices` |
 | `app/serializers/discourse_mobile_push/device_serializer.rb` | Device JSON (fingerprint only) |
-| `bin/docker-test` | Runs lint/spec in the Discourse test image |
+| `bin/docker-test` | Runs lint/spec in the Discourse test image; `prepare` builds the migrated-DB snapshot |
 | `.lattice/verification.yaml` | Verification gate stages |
 | `docs/mobile-api.md` | Mobile API v1 reference for app developers |
 | `CHANGELOG.md` | Release notes (Keep a Changelog) |
