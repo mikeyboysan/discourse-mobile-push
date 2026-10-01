@@ -308,6 +308,7 @@ run_stage() {
 
   stage_json+=("$(stage_json_entry "$name" "$status" "$exit_code" "$((end_epoch - start_epoch))" \
     "$wall_start" "$wall_end" "$command" "$log")")
+  stage_timings+=("$name $((end_epoch - start_epoch))s")
 
   if [ "$exit_code" -ne 0 ]; then
     failed_stage_name="$name"
@@ -345,9 +346,15 @@ run_all_stages() {
 # Verdict + summary.json — the complete, final answer (see header comment)
 # ---------------------------------------------------------------------------
 
+build_timing() {
+  local timings_joined
+  timings_joined=$(IFS=,; echo "${stage_timings[*]}")
+  printf '%ss (%s)' "$((run_end_epoch - run_start_epoch))" "${timings_joined//,/, }"
+}
+
 build_headline() {
   if [ "$failed" = true ]; then
-    local headline="Failed at $failed_stage_name: exit code $failed_exit_code"
+    local headline="Failed at $failed_stage_name: exit code $failed_exit_code after $(build_timing)"
     if [ "${#skipped_stage_names[@]}" -gt 0 ]; then
       local skipped_joined
       skipped_joined=$(IFS=,; echo "${skipped_stage_names[*]}")
@@ -355,7 +362,7 @@ build_headline() {
     fi
     printf '%s' "$headline"
   else
-    printf 'All %s stage(s) passed' "${#stage_names[@]}"
+    printf 'All %s stage(s) passed in %s' "${#stage_names[@]}" "$(build_timing)"
   fi
 }
 
@@ -421,6 +428,7 @@ run_dir=""
 claim_run_dir
 
 stage_json=()
+stage_timings=()
 failed=false
 halted_early=false
 failed_stage_name=""
