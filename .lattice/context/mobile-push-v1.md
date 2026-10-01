@@ -108,6 +108,7 @@ status: complete
 | 2026-10-01 | [1.1.0, platform review] Admin removal (`DELETE /admin/mobile-push/devices/:id`, staff-logged); the admin list reloads from page 0 after a removal | Review finding: no server-side way to stop a device; reloading avoids the offset-paging skip | User-facing device list in preferences (core's Apps preferences and logout already cover self-service) |
 | 2026-10-01 | [1.1.0, platform review] `generic` mode builds slug-free URLs from IDs (`/t/<topic_id>/<post_number>`, chat `/chat/c/-/...`, otherwise the base URL) | Review finding: slugs leaked titles to Google and Apple | Document the leak only |
 | 2026-10-01 | [1.1.0, platform review] Dev-only paths are `export-ignore`d; the local path and client name were removed from tracked docs | Review findings on hygiene and third-party content; `git clone` installs still contain tracked dev files | Untrack `.agents` / `.lattice` |
+| 2026-10-01 | [After 1.1.0, finding F6] `.agents/` and `skills-lock.json` are untracked and git-ignored; they stay local only | Third-party review-skill content without a licence notice must not be redistributed, and `export-ignore` doesn't cover `git clone` installs | Add upstream licence notices and keep shipping them |
 ## Open Questions
 
 None.

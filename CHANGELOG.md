@@ -4,6 +4,10 @@ All notable changes to this plugin are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Removed
+
+- Third-party AI review-skill files (`.agents/`, `skills-lock.json`) are no longer part of the repository, so `git clone` installs don't receive them.
+
 ## [1.1.0] - 2026-10-01
 
 Fixes from the 1.0.0 release review.

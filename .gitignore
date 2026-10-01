@@ -4,3 +4,5 @@ node_modules
 .eslintcache
 /.pnpm-store
 /tmp
+/.agents
+/skills-lock.json
