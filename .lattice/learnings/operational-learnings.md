@@ -7,6 +7,7 @@ Experiential patterns from practice. Complements standards (what should be) with
 - 2026-10-01 [design] Provider errors that are ambiguous between "bad message" and "bad recipient" (e.g. HTTP 400) — classify on the detailed error payload, never the status alone; config-class errors must never delete recipient records.
 - 2026-10-01 [design] Fan-out to N external recipients — one job per recipient with per-job retries avoids duplicate sends without cross-recipient bookkeeping (in Discourse, retry by quiet re-enqueue: raised job errors are logged on every attempt).
 - 2026-10-01 [review] New user-owned tables slip through design without deletion rules — decide user deletion/anonymisation behaviour (FK cascade, cleanup hook) at design time.
+- 2026-10-01 [review] Health verdicts shown in more than one place (dashboard problem check, admin page) belong in a core use case that returns a reason, not in the problem check adapter.
 - 2026-10-01 [review] Provider errors that may mean "one recipient" or "whole configuration" (e.g. FCM `SENDER_ID_MISMATCH`) — classify as configuration, but make health alerts require breadth (several recipients) so one stray token cannot raise a permanent alarm.
 
 ## Implementation Craft
@@ -23,12 +24,18 @@ Experiential patterns from practice. Complements standards (what should be) with
 - 2026-10-01 [implementation] Ruby helpers mixing an optional positional hash with keyword options — `helper(key: v)` binds to keywords and raises "unknown keyword"; take `**overrides` alongside the keyword options instead.
 - 2026-10-01 [implementation] rubocop-discourse flags `Time.zone.now + 60.seconds` (`Rails/DurationArithmetic`); write `60.seconds.from_now`.
 - 2026-10-01 [implementation] FCM HTTP v1 `android.priority` — send lowercase `"high"`/`"normal"` as in Firebase's examples, despite the REST reference listing enum names `HIGH`/`NORMAL`.
+- 2026-10-01 [implementation] rubocop-discourse `Discourse/Plugins/CallRequiresPlugin` forces `requires_plugin` on every plugin controller, admin ones included — admin endpoints 404 while the plugin is disabled, so don't design admin flows that need them before enabling.
+- 2026-10-01 [implementation] Discourse plugin problem checks — `app/services/problem_check/<name>.rb`, `require_relative` + `register_problem_check` in `after_initialize`, locale `dashboard.problem.<identifier>` (interpolates `%{base_path}`); without `perform_every` the check runs on every dashboard load, so keep it to cheap queries.
+- 2026-10-01 [implementation] Discourse `RateLimiter` skips staff unless `apply_limit_to_staff: true` (needed for admin-only actions); rate-limit specs must call `RateLimiter.enable`.
+- 2026-10-01 [review] Matching on usernames — resolve through Discourse (`User.find_by_username` / `User.normalize_username`), never a hand-rolled `downcase` (Unicode usernames).
+- 2026-10-01 [implementation] Red lint stage — diagnose by running `rubocop --format simple` / `script/i18n_lint.rb` directly in the test container rather than opening the stage log.
 
 ## Quality Signals
 <!-- Recurring quality issues that keep appearing despite rules -->
 - 2026-10-01 [review] Auth and API-key scope tests written only for the first endpoint — cover authentication and scope on every endpoint, especially logout/unregister paths that apps depend on.
 - 2026-10-01 [review] A slice that ships a contract external clients consume (e.g. the push `data` payload) must update its reference doc and changelog in the same slice — don't defer to a later docs slice.
 - 2026-10-01 [review] Jobs that re-load records by id — test the "record gone" path for every record loaded (user and device), not only the main one.
+- 2026-10-01 [review] Controllers coercing query params with `to_i`/`downcase` crash with a 500 on array params (`?page[]=1`) — validate the type of every query param, not only body params.
 - 2026-10-01 [review] Error paths keep slipping through (second review in a row) — parsers of untrusted or admin-supplied input need a spec for every explicit raise/rescue branch, not just the common failures.
 
 ## Reliability

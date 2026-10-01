@@ -6,6 +6,8 @@ module DiscourseMobilePush
     MAX_BODY_LENGTH = 500
     TITLE_TRANSLATION_PREFIX = "discourse_push_notifications.popup"
     GENERIC_BODY_TRANSLATION = "discourse_mobile_push.notification.generic_body"
+    TEST_TITLE_TRANSLATION = "discourse_mobile_push.test_notification.title"
+    TEST_BODY_TRANSLATION = "discourse_mobile_push.test_notification.body"
     WATCHING_CATEGORY_OR_TAG = "watching_category_or_tag"
 
     def initialize(settings: DiscourseMobilePush.settings)
@@ -19,6 +21,23 @@ module DiscourseMobilePush
           body: body_for(alert).truncate(MAX_BODY_LENGTH),
           data: data_for(alert),
           priority: priority_for(alert),
+        )
+      end
+    end
+
+    def build_test(locale:)
+      I18n.with_locale(locale) do
+        PushMessage.new(
+          title:
+            I18n.t(TEST_TITLE_TRANSLATION, site_title: @settings.site_title).truncate(
+              MAX_TITLE_LENGTH,
+            ),
+          body: I18n.t(TEST_BODY_TRANSLATION).truncate(MAX_BODY_LENGTH),
+          data: {
+            "type" => "test",
+            "url" => @settings.base_url,
+          },
+          priority: :high,
         )
       end
     end

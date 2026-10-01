@@ -9,4 +9,15 @@ DiscourseMobilePush::Engine.routes.draw do
   end
 end
 
-Discourse::Application.routes.draw { mount ::DiscourseMobilePush::Engine, at: "/mobile-push" }
+Discourse::Application.routes.draw do
+  mount ::DiscourseMobilePush::Engine, at: "/mobile-push"
+
+  scope "/admin/mobile-push", constraints: AdminConstraint.new, defaults: { format: :json } do
+    get "/status" => "discourse_mobile_push/admin/status#show"
+    get "/devices" => "discourse_mobile_push/admin/devices#index"
+    post "/devices/:id/test" => "discourse_mobile_push/admin/devices#send_test",
+         :constraints => {
+           id: /\d+/,
+         }
+  end
+end

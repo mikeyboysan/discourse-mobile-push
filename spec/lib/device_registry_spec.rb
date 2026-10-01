@@ -211,4 +211,92 @@ RSpec.describe DiscourseMobilePush::DeviceRegistry do
       expect(DiscourseMobilePush::Device.exists?(device.id)).to eq(false)
     end
   end
+
+  describe "#find" do
+    it "finds any user's device by id" do
+      device = Fabricate(:mobile_push_device, user: other_user)
+
+      expect(registry.find(device_id: device.id)).to eq(device)
+    end
+
+    it "returns nil for an unknown id" do
+      expect(registry.find(device_id: -1)).to be_nil
+    end
+  end
+
+  describe "#counts" do
+    before { SiteSetting.mobile_push_stale_device_days = 30 }
+
+    it "counts devices by platform, app version, and staleness" do
+      Fabricate(:mobile_push_device, platform: "android", app_version: "1.0.0")
+      Fabricate(:mobile_push_device, platform: "android", app_version: "1.1.0")
+      Fabricate(
+        :mobile_push_device,
+        platform: "ios",
+        app_version: "1.1.0",
+        last_seen_at: 31.days.ago,
+      )
+
+      counts = registry.counts
+
+      expect(counts).to have_attributes(total: 3, stale: 1)
+      expect(counts.by_platform).to eq("android" => 2, "ios" => 1)
+      expect(counts.by_app_version.map(&:to_h)).to eq(
+        [
+          { app_id: "com.example.app", app_version: "1.0.0", count: 1 },
+          { app_id: "com.example.app", app_version: "1.1.0", count: 2 },
+        ],
+      )
+    end
+
+    it "reports zeros without devices" do
+      expect(registry.counts).to have_attributes(
+        total: 0,
+        stale: 0,
+        by_platform: {
+        },
+        by_app_version: [],
+      )
+    end
+  end
+
+  describe "#search" do
+    it "lists all devices, most recently seen first" do
+      older = Fabricate(:mobile_push_device, user:, last_seen_at: 2.days.ago)
+      newer = Fabricate(:mobile_push_device, user: other_user, last_seen_at: 1.day.ago)
+
+      page = registry.search
+
+      expect(page.devices).to eq([newer, older])
+      expect(page).to have_attributes(total_rows: 2, page: 0)
+    end
+
+    it "filters by owners" do
+      own = Fabricate(:mobile_push_device, user:)
+      Fabricate(:mobile_push_device, user: other_user)
+
+      page = registry.search(owners: User.where(id: user.id))
+
+      expect(page.devices).to eq([own])
+      expect(page.total_rows).to eq(1)
+    end
+
+    it "finds nothing when no owner matches" do
+      Fabricate(:mobile_push_device, user:)
+
+      expect(registry.search(owners: User.none)).to have_attributes(devices: [], total_rows: 0)
+    end
+
+    it "pages through the results" do
+      stub_const(described_class, :PAGE_SIZE, 2) do
+        devices =
+          3.times.map { |i| Fabricate(:mobile_push_device, user:, last_seen_at: i.days.ago) }
+
+        page = registry.search(page: 1)
+
+        expect(page.devices).to eq([devices.last])
+        expect(page).to have_attributes(total_rows: 3, page: 1)
+      end
+    end
+  end
 end

@@ -37,6 +37,33 @@ RSpec.describe DiscourseMobilePush::Fcm::Provider do
     end
   end
 
+  describe "#status" do
+    it "reports the project id when the credentials are valid" do
+      expect(provider.status).to have_attributes(
+        configured: true,
+        project_id: MobilePushSpecHelpers::FCM_PROJECT_ID,
+        error: nil,
+      )
+    end
+
+    it "prefers the project id override" do
+      SiteSetting.mobile_push_firebase_project_id = "override-project"
+
+      expect(provider.status.project_id).to eq("override-project")
+    end
+
+    it "reports the credential error without exposing the key" do
+      SiteSetting.mobile_push_firebase_service_account_json =
+        fcm_service_account_json(private_key: "not a key")
+
+      status = provider.status
+
+      expect(status).to have_attributes(configured: false, project_id: nil)
+      expect(status.error).to be_present
+      expect(status.error).not_to include("not a key")
+    end
+  end
+
   describe "#deliver" do
     it "sends the message to FCM with a bearer access token" do
       stub_fcm_access_token(access_token: "abc")

@@ -76,6 +76,18 @@ status: approved
 | 2026-10-01 | [Review slice 3] Push payload documented in `docs/mobile-api.md` and `CHANGELOG.md` in this slice rather than slice 6 | The data contract is consumed by apps as soon as delivery ships | Defer to the docs slice |
 | 2026-10-01 | [Review slice 3] `NotificationListener` calls `provider.configured?` (parses credentials) per alert, without caching | ~1 ms in Sidekiq per alert for users with devices; caching would need invalidation on setting changes | Memoise parsed credentials keyed by the setting value |
 | 2026-10-01 | [Impl slice 3] Slice 3 complete (Alert, AlertMapper, NotificationListener, PayloadBuilder, DiagnosticsStore, DeliveryService, DeliverToDevice job, `:push_notification` wiring) - first end-to-end milestone; 215 specs green | -- | -- |
+| 2026-10-01 | [Impl slice 4] Port gains `PushProvider#status -> ProviderStatus(configured, project_id, error)`; `configured?` is now derived from it (additive contract change) | The status endpoint needs the project id and a sanitized configuration error, and only the adapter can parse credentials | Status endpoint parses credentials itself (would leak `Fcm::*` into an admin adapter) |
+| 2026-10-01 | [Impl slice 4] Bounded test send: `Fcm::HttpClient.interactive` (2 s open, 4 s read/write timeouts) wired in `plugin.rb` as `DiscourseMobilePush.interactive_provider`; `HttpClient.new` gains optional timeout keywords | Worst case (token grant + send + one re-auth) stays ~24 s, under the web request timeout; background delivery keeps 5 s / 10 s | Reuse the background provider timeouts |
+| 2026-10-01 | [Impl slice 4] Breadth rule implemented: `DiagnosticsStore#record` gains optional `device_id:`; config errors put the device in a Redis sorted set (scored by time, pruned after 1 day, key expires after 1 day); delivered or invalidated removes it; `config_error_device_count(since:)` | Realises the slice 2 review decision: the problem check needs distinct affected devices, not just "last config error" | Count config errors without device identity |
+| 2026-10-01 | [Impl slice 4] Problem check: enabled and (provider not configured, or config-error devices in the last day >= min(2, registered devices)); no problem when no devices are registered | One stray token cannot alarm a multi-device site, while a single-device site still gets warned | Fixed threshold of 2 (never warns single-device sites) |
+| 2026-10-01 | [Impl slice 4] Admin JSON controllers use `requires_plugin` (404 while the plugin is disabled); the `enabled` field stays in the status contract | Enforced by Discourse's `Discourse/Plugins/CallRequiresPlugin` cop; plugin convention | Status reachable while disabled so admins can check credentials before enabling |
+| 2026-10-01 | [Impl slice 4] Admin test sends are rate limited to 10 per minute per admin (`apply_limit_to_staff`); staff log entry `mobile_push_test_send` records username, device id, platform, app id, token fingerprint and outcome (never the token) | Prevents accidental push floods to a user's phone; audit trail per Flow 4 | No rate limit for admins |
+| 2026-10-01 | [Impl slice 4] `DeviceRegistry` gains `find(device_id:)`, `device_count`, `counts` (stale threshold from `stale_device_days`) and `search(username:, page:)` (50 per page, newest seen first, case-insensitive username) | Admin adapters reach devices only through the registry | Admin controllers query `Device` directly |
+| 2026-10-01 | [Impl slice 4] Test message: data `{type: "test", url: base_url}`, high priority, plugin-translated title (site title) and body, identical in both privacy modes; documented in `docs/mobile-api.md` | Contains no forum content, so privacy mode does not apply; apps must recognise `type` | Reuse the notification data shape with a fake type |
+| 2026-10-01 | [Impl slice 4] Slice 4 complete (provider status, interactive provider, config-error breadth tracking, registry admin queries, `build_test`, admin status/devices/test endpoints, problem check, locales, docs); verification green | -- | -- |
+| 2026-10-01 | [Review slice 4] Health rule moved into core `HealthCheck#problem -> nil \| :not_configured \| :config_errors`; the problem check maps each reason to its own dashboard message, and the status endpoint gains a `problem` field (additive contract change) | The verdict is policy and slice 5's admin page shows it too; admins need to know which cause to fix | Keep the rule in the problem check until slice 5 needs it |
+| 2026-10-01 | [Review slice 4] Device browser username filter resolved in the admin controller through `User.normalize_username` and passed to `DeviceRegistry#search(owners:)` as a user relation; `page` must be 1-6 digits (400 otherwise) | Unicode usernames match as Discourse matches them; Discourse username rules stay out of core; array or huge page params can no longer cause a 500 | Registry filters on `username.downcase` |
+| 2026-10-01 | [Review slice 4] Admin action renamed `send_test` (path unchanged); `string_param` extracted to `StringParams` shared by both controllers; config-error tracking writes in one Redis `multi` | Avoids shadowing `Kernel#test`; one input-validation helper; atomic and single round trip | -- |
 ## Open Questions
 
 None.
@@ -352,10 +364,17 @@ Device JSON: {id, platform, app_id, app_version, device_identifier, token_finger
 | Path | Role |
 |---|---|
 | `docs/proposal.md` | Source proposal (requirement doc) |
-| `plugin.rb` | Composition root: metadata, enabled setting, provider wiring, token log filter, User API key scope, `:push_notification` and anonymisation listeners |
+| `plugin.rb` | Composition root: metadata, enabled setting, provider and interactive provider wiring, problem check registration, token log filter, User API key scope, `:push_notification` and anonymisation listeners |
 | `lib/discourse_mobile_push/push_message.rb` | Core value object: provider-neutral message (string data, priority) |
 | `lib/discourse_mobile_push/delivery_result.rb` | Core value object: neutral delivery outcome |
-| `lib/discourse_mobile_push/push_provider.rb` | Port: `configured?`, `deliver(message:, token:)` |
+| `lib/discourse_mobile_push/push_provider.rb` | Port: `status`, `configured?` (derived), `deliver(message:, token:)` |
+| `lib/discourse_mobile_push/provider_status.rb` | Core value object: provider configuration status (configured, project id, sanitized error) |
+| `app/controllers/discourse_mobile_push/admin/status_controller.rb` | Inbound HTTP (admin): `/admin/mobile-push/status` |
+| `app/controllers/discourse_mobile_push/admin/devices_controller.rb` | Inbound HTTP (admin): device browser and bounded test send |
+| `app/serializers/discourse_mobile_push/admin_device_serializer.rb` | Admin device JSON (owner, delivery diagnostics, stale flag; fingerprint only) |
+| `app/services/problem_check/mobile_push_configuration.rb` | Inbound adapter: admin dashboard problem check (one message per health reason) |
+| `lib/discourse_mobile_push/health_check.rb` | Core: push health verdict (disabled/healthy, not configured, widespread config errors) |
+| `app/controllers/discourse_mobile_push/string_params.rb` | Controller mixin: string-only parameter validation |
 | `lib/discourse_mobile_push/fcm/provider.rb` | Outbound adapter: FCM HTTP v1 send with one re-authentication on 401 |
 | `lib/discourse_mobile_push/fcm/service_account.rb` | Service-account JSON parsing and validation |
 | `lib/discourse_mobile_push/fcm/access_token_source.rb` | OpenSSL RS256 JWT grant and Redis-cached access token |
@@ -367,11 +386,11 @@ Device JSON: {id, platform, app_id, app_version, device_identifier, token_finger
 | `lib/discourse_mobile_push/notification_listener.rb` | Inbound adapter: `:push_notification` gate (enabled, devices, push filters, provider configured) and per-device enqueue |
 | `lib/discourse_mobile_push/payload_builder.rb` | Core: privacy mode, titles, truncation, data contract, priority |
 | `lib/discourse_mobile_push/delivery_service.rb` | Core: send via the port and apply the outcome to the device and diagnostics |
-| `lib/discourse_mobile_push/diagnostics_store.rb` | Persistence port: per-site Redis delivery summary |
+| `lib/discourse_mobile_push/diagnostics_store.rb` | Persistence port: per-site Redis delivery summary and recent config-error devices |
 | `app/jobs/regular/discourse_mobile_push/deliver_to_device.rb` | Inbound async: per-device delivery with quiet re-enqueue backoff |
 | `config/settings.yml` | `mobile_push_*` site settings |
 | `lib/discourse_mobile_push/settings.rb` | Configuration edge (sole reader of site settings) |
-| `lib/discourse_mobile_push/device_registry.rb` | Core: device registration, listing, removal, invalidation |
+| `lib/discourse_mobile_push/device_registry.rb` | Core: device registration, listing, removal, invalidation, admin counts and search |
 | `app/models/discourse_mobile_push/device.rb` | Persistence port: `mobile_push_devices` model and validations |
 | `db/migrate/20261001100000_create_mobile_push_devices.rb` | Devices table, indexes, cascading user FK |
 | `app/controllers/discourse_mobile_push/devices_controller.rb` | Inbound HTTP: `/mobile-push/v1/devices` |

@@ -16,6 +16,8 @@ module ::DiscourseMobilePush
   def self.settings = Settings.current
 
   def self.provider = Fcm::Provider.new
+
+  def self.interactive_provider = Fcm::Provider.new(http: Fcm::HttpClient.interactive)
 end
 
 require_relative "lib/discourse_mobile_push/engine"
@@ -23,6 +25,10 @@ require_relative "lib/discourse_mobile_push/engine"
 Rails.application.config.filter_parameters << /\Atoken\z/
 
 after_initialize do
+  require_relative "app/services/problem_check/mobile_push_configuration"
+
+  register_problem_check ProblemCheck::MobilePushConfiguration
+
   add_user_api_key_scope(
     :devices,
     methods: %i[get post delete],

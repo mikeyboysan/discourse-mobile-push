@@ -42,6 +42,26 @@ RSpec.describe DiscourseMobilePush::Fcm::HttpClient do
     end
   end
 
+  describe ".interactive" do
+    it "uses the short timeouts meant for synchronous requests" do
+      Net::HTTP
+        .expects(:start)
+        .with(
+          "fcm.googleapis.com",
+          443,
+          use_ssl: true,
+          open_timeout: described_class::INTERACTIVE_OPEN_TIMEOUT_SECONDS,
+          read_timeout: described_class::INTERACTIVE_READ_TIMEOUT_SECONDS,
+          write_timeout: described_class::INTERACTIVE_READ_TIMEOUT_SECONDS,
+        )
+        .raises(Net::OpenTimeout)
+
+      expect { described_class.interactive.post_json(url:, body: {}) }.to raise_error(
+        described_class::NetworkError,
+      )
+    end
+  end
+
   describe "network failures" do
     it "raises NetworkError on timeout" do
       stub_request(:post, url).to_timeout

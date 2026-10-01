@@ -28,3 +28,10 @@
 - **Result**: 0 critical, 3 warning, 2 suggestion
 - **Key findings**: shipped push data contract undocumented; title wording rule in core (kept, logged); job's user-gone and missing-attempt paths untested (error paths again)
 - **Strengths**: job re-resolves the device through the user's own devices; end-to-end spec drives a real PostCreator reply through the FCM adapter
+
+## 2026-10-01 — slice 4: admin diagnostics API and problem check (uncommitted)
+- **Scope**: 28 files; core, port, FCM adapter, admin HTTP adapters, problem check, routes, locales, docs, specs
+- **Atoms**: clean-code, knowledge-priming, architecture, secure-coding, test-quality; custom: Mobile API Compatibility, Discourse Compatibility
+- **Result**: 0 critical, 3 warning, 4 suggestion
+- **Key findings**: array page param causes a 500; username match bypasses Discourse normalisation; health rule in the problem check adapter with one message for two causes
+- **Strengths**: token secrecy verified in admin JSON and the staff log; config-error breadth tracked per device

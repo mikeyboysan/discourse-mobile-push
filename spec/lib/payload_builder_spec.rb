@@ -134,4 +134,34 @@ RSpec.describe DiscourseMobilePush::PayloadBuilder do
       expect(build.priority).to eq(:normal)
     end
   end
+
+  describe "#build_test" do
+    it "builds a high-priority test message that opens the site" do
+      message = builder.build_test(locale: "en")
+
+      expect(message).to have_attributes(
+        title: "Test Forum",
+        body: "This is a test notification. Push notifications are working.",
+        data: {
+          "type" => "test",
+          "url" => Discourse.base_url,
+        },
+        priority: :high,
+      )
+    end
+
+    it "uses the same text in generic privacy mode" do
+      SiteSetting.mobile_push_privacy_mode = "generic"
+
+      expect(builder.build_test(locale: "en").body).to eq(
+        "This is a test notification. Push notifications are working.",
+      )
+    end
+
+    it "translates into the given locale" do
+      TranslationOverride.upsert!("de", described_class::TEST_BODY_TRANSLATION, "Test")
+
+      expect(builder.build_test(locale: "de").body).to eq("Test")
+    end
+  end
 end

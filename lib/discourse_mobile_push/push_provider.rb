@@ -2,7 +2,9 @@
 
 module DiscourseMobilePush
   class PushProvider
-    def configured? = raise NotImplementedError
+    def status = raise NotImplementedError
+
+    def configured? = status.configured
 
     def deliver(message:, token:) = raise NotImplementedError
   end

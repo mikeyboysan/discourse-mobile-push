@@ -2,6 +2,8 @@
 
 module DiscourseMobilePush
   class DevicesController < ::ApplicationController
+    include StringParams
+
     requires_plugin PLUGIN_NAME
 
     REGISTRATIONS_PER_MINUTE = 20
@@ -69,14 +71,6 @@ module DiscourseMobilePush
         app_version: string_param(:app_version),
         device_identifier: string_param(:device_identifier),
       )
-    end
-
-    def string_param(key, required: false)
-      value = params[key]
-      raise Discourse::InvalidParameters.new(key) if value.present? && !value.is_a?(String)
-      raise ActionController::ParameterMissing.new(key) if required && value.blank?
-
-      value.presence
     end
   end
 end

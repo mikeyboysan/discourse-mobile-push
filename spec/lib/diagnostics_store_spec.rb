@@ -56,4 +56,51 @@ RSpec.describe DiscourseMobilePush::DiagnosticsStore do
 
     expect(store.summary.last_failure_detail).to eq("rejected")
   end
+
+  describe "#config_error_device_count" do
+    def record_for(device_id, outcome, at: now) =
+      store.record(result: result(outcome), device_id:, at:)
+
+    it "counts each device with a configuration error once" do
+      record_for(1, :config_error)
+      record_for(1, :config_error, at: now + 1.minute)
+      record_for(2, :config_error)
+
+      expect(store.config_error_device_count(since: now - 1.hour)).to eq(2)
+    end
+
+    it "ignores configuration errors older than the window" do
+      record_for(1, :config_error, at: now - 2.hours)
+      record_for(2, :config_error)
+
+      expect(store.config_error_device_count(since: now - 1.hour)).to eq(1)
+    end
+
+    it "forgets a device once it is delivered to again" do
+      record_for(1, :config_error)
+      record_for(1, :delivered, at: now + 1.minute)
+
+      expect(store.config_error_device_count(since: now - 1.hour)).to eq(0)
+    end
+
+    it "forgets a device once it is invalidated" do
+      record_for(1, :config_error)
+      record_for(1, :invalid_device, at: now + 1.minute)
+
+      expect(store.config_error_device_count(since: now - 1.hour)).to eq(0)
+    end
+
+    it "does not count other failures" do
+      record_for(1, :retryable)
+      record_for(2, :rejected)
+
+      expect(store.config_error_device_count(since: now - 1.hour)).to eq(0)
+    end
+
+    it "does not track configuration errors without a device" do
+      store.record(result: result(:config_error), at: now)
+
+      expect(store.config_error_device_count(since: now - 1.hour)).to eq(0)
+    end
+  end
 end

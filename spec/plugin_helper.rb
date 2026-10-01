@@ -62,11 +62,42 @@ class MobilePushFakeProvider < DiscourseMobilePush::PushProvider
     @deliveries = []
   end
 
-  def configured? = @configured
+  def status
+    DiscourseMobilePush::ProviderStatus.new(
+      configured: @configured,
+      project_id: @configured ? MobilePushSpecHelpers::FCM_PROJECT_ID : nil,
+      error: @configured ? nil : "Firebase service account key is not configured",
+    )
+  end
 
   def deliver(message:, token:)
     @deliveries << { message:, token: }
     @result
+  end
+end
+
+RSpec.shared_examples "a mobile push admin-only endpoint" do
+  it "is not found for anonymous users" do
+    perform_request
+
+    expect(response.status).to eq(404)
+  end
+
+  it "is not found for moderators" do
+    sign_in(Fabricate(:moderator))
+
+    perform_request
+
+    expect(response.status).to eq(404)
+  end
+
+  it "is not found while the plugin is disabled" do
+    sign_in(Fabricate(:admin))
+    SiteSetting.mobile_push_enabled = false
+
+    perform_request
+
+    expect(response.status).to eq(404)
   end
 end
 

@@ -4,6 +4,11 @@ module DiscourseMobilePush
   class DeviceRegistry
     Registration = Data.define(:platform, :app_id, :token, :app_version, :device_identifier)
     Result = Data.define(:device, :created)
+    Counts = Data.define(:total, :stale, :by_platform, :by_app_version)
+    AppVersionCount = Data.define(:app_id, :app_version, :count)
+    Page = Data.define(:devices, :total_rows, :page)
+
+    PAGE_SIZE = 50
 
     def initialize(settings: DiscourseMobilePush.settings)
       @settings = settings
@@ -25,7 +30,40 @@ module DiscourseMobilePush
 
     def invalidate(device:) = Device.where(id: device.id).delete_all
 
+    def find(device_id:) = Device.includes(:user).find_by(id: device_id)
+
+    def device_count = Device.count
+
+    def counts
+      Counts.new(
+        total: Device.count,
+        stale: Device.where(last_seen_at: ...@settings.stale_device_days.days.ago).count,
+        by_platform: Device.group(:platform).count,
+        by_app_version: app_version_counts,
+      )
+    end
+
+    def search(owners: nil, page: 0)
+      scope = owners ? Device.where(user: owners) : Device.all
+      devices =
+        scope
+          .includes(:user)
+          .order(last_seen_at: :desc, id: :desc)
+          .offset(page * PAGE_SIZE)
+          .limit(PAGE_SIZE)
+          .to_a
+      Page.new(devices:, total_rows: scope.count, page:)
+    end
+
     private
+
+    def app_version_counts
+      Device
+        .group(:app_id, :app_version)
+        .order(:app_id, :app_version)
+        .count
+        .map { |(app_id, app_version), count| AppVersionCount.new(app_id:, app_version:, count:) }
+    end
 
     def write_registration(user, registration)
       Device.transaction(requires_new: true) do

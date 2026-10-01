@@ -4,3 +4,7 @@ en:
       site_settings:
         categories:
           discourse_mobile_push: "Mobile Push"
+      logs:
+        staff_actions:
+          actions:
+            mobile_push_test_send: "Send mobile push test"

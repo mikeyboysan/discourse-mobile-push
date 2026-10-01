@@ -100,8 +100,8 @@ Each Discourse push notification arrives as an FCM message with a `notification`
 
 | Key | Always present | Value |
 |---|---|---|
-| `type` | yes | `notification` |
-| `notification_type` | yes | Discourse notification type name, e.g. `replied`, `mentioned`, `private_message`, `chat_mention`; `unknown` for types Discourse does not name |
+| `type` | yes | `notification`, or `test` for an administrator's test notification (see below) |
+| `notification_type` | for `notification` | Discourse notification type name, e.g. `replied`, `mentioned`, `private_message`, `chat_mention`; `unknown` for types Discourse does not name |
 | `notification_type_id` | when known | Discourse's numeric notification type, as a string |
 | `url` | yes | Absolute URL of the content to open, always on the forum's own host. Falls back to the forum's base URL when the notification has no link |
 | `topic_id` | for post notifications | Topic ID |
@@ -137,5 +137,7 @@ Each Discourse push notification arrives as an FCM message with a `notification`
 Titles are truncated to 150 characters and bodies to 500.
 
 **Priority**: notification types listed in `mobile_push_high_priority_notification_types` (by default `private_message`, `mentioned` and `chat_mention`) are sent with Android `high` priority; everything else uses `normal`.
+
+**Test notifications**: an administrator can send a test notification to a device from the admin diagnostics. Its `data` contains only `type` (`test`) and `url` (the forum's base URL); it is sent with `high` priority and the same text in every privacy mode. Apps should open the forum's home page, or simply show it.
 
 **Delivery**: Discourse's own rules decide who is notified, including do-not-disturb and push notification filters from other plugins. Temporary Firebase failures are retried with backoff. A device whose token Firebase reports as unregistered or invalid is removed; the app re-registers it on its next start.

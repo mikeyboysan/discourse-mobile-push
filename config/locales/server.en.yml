@@ -11,3 +11,10 @@ en:
   discourse_mobile_push:
     notification:
       generic_body: "You have a new notification"
+    test_notification:
+      title: "%{site_title}"
+      body: "This is a test notification. Push notifications are working."
+  dashboard:
+    problem:
+      mobile_push_configuration: "Mobile push notifications cannot be delivered: the Firebase service account key is missing or invalid. Review the <a href='%{base_path}/admin/site_settings/category/discourse_mobile_push'>mobile push settings</a>."
+      mobile_push_config_errors: "Firebase rejected mobile push notifications for several devices in the last day because of a configuration problem (for example a wrong project ID or missing permissions). Review the <a href='%{base_path}/admin/site_settings/category/discourse_mobile_push'>mobile push settings</a>."

@@ -16,7 +16,7 @@ module DiscourseMobilePush
       result = @provider.deliver(message:, token: device.token)
       now = Time.zone.now
       apply_outcome(result, device, now)
-      @diagnostics.record(result:, at: now)
+      @diagnostics.record(result:, device_id: device.id, at: now)
       result
     end
 

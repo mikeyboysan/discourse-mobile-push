@@ -55,4 +55,10 @@ RSpec.describe DiscourseMobilePush::DeliveryService do
 
     expect(diagnostics.summary.last_config_error_detail).to eq("HTTP 403")
   end
+
+  it "attributes configuration errors to the device in diagnostics" do
+    deliver_with(MobilePushFakeProvider.new(outcome: :config_error))
+
+    expect(diagnostics.config_error_device_count(since: 1.minute.ago)).to eq(1)
+  end
 end

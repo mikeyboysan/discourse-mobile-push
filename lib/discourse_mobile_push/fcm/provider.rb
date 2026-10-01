@@ -11,11 +11,10 @@ module DiscourseMobilePush
         @http = http
       end
 
-      def configured?
-        service_account
-        true
-      rescue InvalidCredentials
-        false
+      def status
+        ProviderStatus.new(configured: true, project_id: service_account.project_id, error: nil)
+      rescue InvalidCredentials => e
+        ProviderStatus.new(configured: false, project_id: nil, error: e.message)
       end
 
       def deliver(message:, token:)
