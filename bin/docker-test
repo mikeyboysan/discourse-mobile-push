@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+#
+# Runs plugin checks inside the official Discourse test image.
+#
+# Usage: bin/docker-test lint|spec
+#
+# Uses docker.exe when available so it also works from WSL without Docker
+# Desktop's WSL integration. Override the image with DISCOURSE_TEST_IMAGE.
+
+set -euo pipefail
+
+PLUGIN=discourse-mobile-push
+IMAGE=${DISCOURSE_TEST_IMAGE:-discourse/discourse_test:release}
+DOCKER=$(command -v docker.exe || command -v docker)
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+SOURCE=$(wslpath -m "$ROOT" 2>/dev/null || echo "$ROOT")
+PLUGIN_DIR=/var/www/discourse/plugins/$PLUGIN
+# The anonymous volume hides host node_modules, which is slow to traverse through the mount.
+MOUNT=(-v "$SOURCE:$PLUGIN_DIR" -v "$PLUGIN_DIR/node_modules")
+
+case "${1:-}" in
+  lint)
+    "$DOCKER" run --rm "${MOUNT[@]}" --entrypoint sudo "$IMAGE" -E -u discourse -H bash -c "
+      set -e
+      bundle exec rubocop plugins/$PLUGIN
+      find plugins/$PLUGIN \( -name node_modules -o -name gems -o -name tmp \) -prune -o -name '*.rb' -print \
+        | xargs bundle exec stree check
+      bundle exec ruby script/i18n_lint.rb plugins/$PLUGIN/config/locales/{client,server}.en.yml
+    "
+    ;;
+  spec)
+    "$DOCKER" run --rm "${MOUNT[@]}" \
+      -e NO_UPDATE=1 -e SKIP_LINT=1 -e SKIP_CORE=1 -e RUBY_ONLY=1 -e SINGLE_PLUGIN="$PLUGIN" \
+      "$IMAGE"
+    ;;
+  *)
+    echo "usage: bin/docker-test lint|spec" >&2
+    exit 2
+    ;;
+esac

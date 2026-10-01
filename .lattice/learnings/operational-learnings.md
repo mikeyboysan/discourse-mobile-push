@@ -11,13 +11,19 @@ Experiential patterns from practice. Complements standards (what should be) with
 ## Implementation Craft
 <!-- Coding approaches, library gotchas, design-to-reality gaps -->
 - 2026-10-01 [design] Read the host framework's current source before designing against an extension point — docs lag (e.g. Discourse's push event fires before push filters; official plugins now live in core `plugins/`).
+- 2026-10-01 [implementation] Windows checkout with `core.autocrlf=true` — generated files come out CRLF, which breaks bash scripts and formatter checks in Linux containers; force LF with `.gitattributes` (`* text=auto eol=lf`) and normalise before container runs.
+- 2026-10-01 [implementation] Discourse migrations — `db:migrate` aborts on a migration timestamped in the future; use a timestamp at or before the current UTC time.
+- 2026-10-01 [implementation] Bind-mounting a Windows repo into a container — host `node_modules` makes linters/`find` crawl through the mount (6.5 min vs 10 s); mask it with an anonymous volume and prune it in `find`.
+- 2026-10-01 [review] Discourse specs that call `RateLimiter.enable` need `use_redis_snapshotting`, or rate-limit counters leak into later tests.
 
 ## Quality Signals
 <!-- Recurring quality issues that keep appearing despite rules -->
+- 2026-10-01 [review] Auth and API-key scope tests written only for the first endpoint — cover authentication and scope on every endpoint, especially logout/unregister paths that apps depend on.
 
 ## Reliability
 <!-- Bug root causes, failure modes, fragile areas, boundary condition gaps -->
 - 2026-10-01 [review] Upserts matched on more than one unique key — a matching order alone isn't enough; specify what happens when the other key is already taken, and handle concurrent inserts (transaction + rescue RecordNotUnique).
+- 2026-10-01 [implementation] Discourse plugin `on(...)` handlers are skipped while the plugin is disabled — privacy/cleanup listeners (e.g. `:user_anonymized`) must use `DiscourseEvent.on` so data is still removed.
 
 ## Structural Health
 <!-- Architectural drift, debt accumulation, coupling issues, migration lessons -->

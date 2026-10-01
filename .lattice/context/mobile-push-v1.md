@@ -46,6 +46,13 @@ status: approved
 | 2026-10-01 | [Level 4 rev] `DiscourseMobilePush.provider` is defined in the composition root (`plugin.rb`); `DiagnosticsStore` is a persistence port alongside `Device` (architecture standard amended) | Core never names `Fcm::*`; Redis-backed diagnostics treated like the AR persistence port | Dedicated `DiagnosticsPort` base class |
 | 2026-10-01 | Revised Levels 3 and 4 re-approved; status restored to approved | Review findings resolved in the design | -- |
 | 2026-10-01 | [Level 4 rev] `token` travels only in request bodies (never query strings) and is filtered from request logs; `AlertMapper` accepts only same-site URLs and string or symbol keys; `PayloadBuilder` truncates title/body to stay under FCM's 4 KB limit | Token secrecy constraint; defence against stray absolute links from other plugins; Sidekiq JSON round-trip; FCM size limit | -- |
+| 2026-10-01 | [Impl slice 1] Added `DeviceRegistry#devices_for(user:)` (most recently seen first) | Device API listing and the Level 3 dispatch flow ("user's device ids") both need it; keeps queries out of the controller | Query `Device` directly in the controller |
+| 2026-10-01 | [Impl slice 1] Token log filtering via exact-match `/\Atoken\z/` in `filter_parameters`; `Device.filter_attributes` masks the token in `inspect` | Core does not filter `token`; a bare `:token` symbol would partial-match unrelated params | Global `:token` partial filter; renaming the field |
+| 2026-10-01 | [Impl slice 1] `:user_anonymized` listener uses `DiscourseEvent.on` (rubocop `UsePluginInstanceOn` disabled locally) | Plugin `on` skips events while the plugin is disabled; anonymised users must still lose tokens | Plugin `on` (tokens survive anonymisation while disabled) |
+| 2026-10-01 | [Impl slice 1] Token fingerprint = first 12 hex chars of SHA-256; registration rate limit 20/min per user; non-string params rejected with 400 | Not reversible, still distinguishes devices; generous for app start-up/refresh; blocks array/hash injection into string columns | Last N token characters (leaks part of a secret) |
+| 2026-10-01 | [Impl slice 1] `user_id` is `integer` with `add_foreign_key ... on_delete: :cascade`; migration `ActiveRecord::Migration[8.0]`; `required_version: 2026.9.0` | Matches `users.id` type and current core migrations; main-only target | `t.references` (bigint) |
+| 2026-10-01 | [Impl slice 1] Verification gate: `.lattice/verification.yaml` runs `bin/docker-test lint` (rubocop, stree, i18n lint) and `bin/docker-test spec` (plugin RSpec) in `discourse/discourse_test:release` with `NO_UPDATE=1`; `docker.exe` used from WSL; host `node_modules` masked by an anonymous volume; `.gitattributes` forces LF | No local Ruby; WSL has no Docker integration; node_modules over the Windows mount made lint take 6.5 min (now ~10 s); CRLF breaks bash and stree | Full `docker:test` lint (pnpm/playwright install each run) |
+| 2026-10-01 | [Impl slice 1] Slice 1 complete (skeleton, settings, Device, DeviceRegistry, Device API, user lifecycle); 56 specs green | -- | -- |
 
 ## Open Questions
 
@@ -323,3 +330,15 @@ Device JSON: {id, platform, app_id, app_version, device_identifier, token_finger
 | Path | Role |
 |---|---|
 | `docs/proposal.md` | Source proposal (requirement doc) |
+| `plugin.rb` | Composition root: metadata, enabled setting, token log filter, User API key scope, anonymisation listener |
+| `config/settings.yml` | `mobile_push_*` site settings |
+| `lib/discourse_mobile_push/settings.rb` | Configuration edge (sole reader of site settings) |
+| `lib/discourse_mobile_push/device_registry.rb` | Core: device registration, listing, removal, invalidation |
+| `app/models/discourse_mobile_push/device.rb` | Persistence port: `mobile_push_devices` model and validations |
+| `db/migrate/20261001100000_create_mobile_push_devices.rb` | Devices table, indexes, cascading user FK |
+| `app/controllers/discourse_mobile_push/devices_controller.rb` | Inbound HTTP: `/mobile-push/v1/devices` |
+| `app/serializers/discourse_mobile_push/device_serializer.rb` | Device JSON (fingerprint only) |
+| `bin/docker-test` | Runs lint/spec in the Discourse test image |
+| `.lattice/verification.yaml` | Verification gate stages |
+| `docs/mobile-api.md` | Mobile API v1 reference for app developers |
+| `CHANGELOG.md` | Release notes (Keep a Changelog) |

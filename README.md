@@ -38,6 +38,8 @@ Apps register devices for the signed-in user. Any standard Discourse authenticat
 
 Push tokens must be sent in the request body, never in the query string. Responses show only a token fingerprint, never the full token.
 
+Full reference, including request and response examples, matching rules and status codes: [`docs/mobile-api.md`](docs/mobile-api.md).
+
 ## Development
 
 Tests and linters run inside the official `discourse/discourse_test` Docker image, so no local Ruby is needed:
