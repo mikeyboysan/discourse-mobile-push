@@ -1,0 +1,3 @@
+# Pins older Discourse versions to the last plugin commit that supports them.
+# Format, one entry per line: "< <discourse version>: <plugin commit sha>".
+# Empty while the plugin supports every Discourse version from its required_version (2026.9.0) onwards.

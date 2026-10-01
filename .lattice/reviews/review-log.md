@@ -42,3 +42,10 @@
 - **Result**: 0 critical, 1 warning, 3 suggestion
 - **Key findings**: out-of-order device list responses overwrite newer filter results; offset paging skips a device after a removal (accepted as a known limitation); empty state untested
 - **Strengths**: admin JS only downloaded by admins; system spec asserts the full token never reaches the page
+
+## 2026-10-01 — slice 6: documentation and release files (uncommitted)
+- **Scope**: 9 files; README, CONTRIBUTING, SECURITY, mobile-api.md, CHANGELOG, plugin.rb metadata, .discourse-compatibility
+- **Atoms**: clean-code, knowledge-priming, secure-coding; custom: Mobile API Compatibility, Discourse Compatibility (docs claims checked against code and core)
+- **Result**: 0 critical, 1 warning, 2 suggestion
+- **Key findings**: immediate delivery vs core's browser-push time window undocumented; staff exemption from the registration rate limit unstated; vague "notification settings" wording
+- **Strengths**: least-privilege Firebase setup; v1 forward-compatibility rule stated

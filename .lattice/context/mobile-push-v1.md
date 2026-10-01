@@ -2,7 +2,7 @@
 feature: mobile-push-v1
 requirement_doc: "docs/proposal.md"
 created: 2026-10-01
-status: approved
+status: complete
 ---
 
 # mobile-push-v1
@@ -96,6 +96,13 @@ status: approved
 | 2026-10-01 | [Impl slice 5] Admin UI strings live under `admin_js` | Loaded only for admins | `js` namespace |
 | 2026-10-01 | [Review slice 5] Known limitation: after a test send removes an invalid device, the next "Load more" skips one device until reload | The admin devices API pages by offset; cursor paging isn't worth it for an occasional admin action | Cursor pagination in the admin API; reloading the list after each removal |
 | 2026-10-01 | [Impl slice 5] Supersedes the "404 renders a notice" part of the row above: the disabled-plugin notice and the route's 404 handling were removed | A system spec showed Discourse does not load a disabled plugin's frontend code, so the plugin route and notice can never render while disabled; the branch was dead code | Keep the notice for the rare disable-while-viewing case |
+| 2026-10-01 | [Impl slice 6] Released as 1.0.0 (dated CHANGELOG section, `v1.0.0` tag) | The proposal's v1.0 scope (section 43) is complete and verified | Stay on 0.x until apps have integrated |
+| 2026-10-01 | [Impl slice 6] `meta_topic_id` removed from `plugin.rb` until a Meta topic exists | Core parses it as an integer, so `TODO` was silently dropped; a placeholder doesn't belong in a release | Keep the placeholder |
+| 2026-10-01 | [Impl slice 6] `.discourse-compatibility` ships with comments only | Core treats a comment-only file as empty; nothing needs pinning while `required_version` 2026.9.0 is the floor | Omit the file until the first pin |
+| 2026-10-01 | [Impl slice 6] Security reports go through GitHub private vulnerability reporting | Keeps reports private without publishing an email address; must be enabled in the repo settings by an account with admin rights | Email address |
+| 2026-10-01 | [Impl slice 6] README recommends a dedicated service account with only the Firebase Cloud Messaging API Admin role | Least privilege (proposal 8.4); the Firebase console's generated key carries far broader permissions | Document only the console key |
+| 2026-10-01 | [Impl slice 6] `docs/mobile-api.md` states the v1 forward-compatibility rule: new optional fields, `data` keys and `data.type` values may appear; apps ignore unknown ones | Lets v1 grow without breaking shipped apps, matching the review dimension "new optional fields are documented" | Leave it implicit |
+| 2026-10-01 | [Review slice 6] Documented that mobile pushes are sent immediately, unlike core browser push, which waits `push_notification_time_window_mins` for recently seen users; honouring that window is a candidate for a later version | Admins expect parity with browser push; the listener enqueues without delay | Implement the delay in 1.0 |
 ## Open Questions
 
 None.
@@ -418,3 +425,7 @@ Device JSON: {id, platform, app_id, app_version, device_identifier, token_finger
 | `spec/system/admin_diagnostics_spec.rb` | System specs for the admin page (page object in `spec/system/page_objects/pages/`) |
 | `docs/implementation-slices.md` | The six implementation slices: scope, status and commit of each |
 | `CHANGELOG.md` | Release notes (Keep a Changelog) |
+| `README.md` | What the plugin does and doesn't do, Firebase setup, configuration, architecture, API overview, development |
+| `CONTRIBUTING.md` | Contribution workflow, design rules, release steps |
+| `SECURITY.md` | Supported versions, private vulnerability reporting, scope |
+| `.discourse-compatibility` | Pins older Discourse versions to compatible plugin commits (empty in 1.0.0) |

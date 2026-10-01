@@ -4,6 +4,10 @@ All notable changes to this plugin are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-01
+
+First release.
+
 ### Added
 
 - Device registration API at `/mobile-push/v1/devices`: register, list and unregister (by id or by token) the signed-in user's devices. See [docs/mobile-api.md](docs/mobile-api.md).
@@ -17,3 +21,7 @@ All notable changes to this plugin are documented here. The format follows [Keep
 - Admin diagnostics API (admins only) under `/admin/mobile-push`: configuration status, delivery summary and device counts; a device browser with tokens masked; and a test notification to a chosen device, recorded in the staff action log.
 - Admin page (Plugins > Mobile Push > Diagnostics): Firebase configuration, delivery health, device counts and app versions, a device browser with username filter, and a confirmed test send per device.
 - Admin dashboard warning when push is enabled but the Firebase credentials are missing or invalid, or Firebase reported configuration errors for several devices in the last day.
+- README with Firebase setup and architecture, contributing guide and security policy.
+
+[Unreleased]: https://github.com/mikeyboysan/discourse-mobile-push/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/mikeyboysan/discourse-mobile-push/releases/tag/v1.0.0

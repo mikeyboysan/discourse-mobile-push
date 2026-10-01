@@ -2,8 +2,7 @@
 
 # name: discourse-mobile-push
 # about: Delivers Discourse notifications to native mobile apps through Firebase Cloud Messaging.
-# meta_topic_id: TODO
-# version: 0.1.0
+# version: 1.0.0
 # authors: Michael Sandler
 # url: https://github.com/mikeyboysan/discourse-mobile-push
 # required_version: 2026.9.0

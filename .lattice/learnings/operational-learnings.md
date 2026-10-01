@@ -9,6 +9,7 @@ Experiential patterns from practice. Complements standards (what should be) with
 - 2026-10-01 [review] New user-owned tables slip through design without deletion rules — decide user deletion/anonymisation behaviour (FK cascade, cleanup hook) at design time.
 - 2026-10-01 [review] Health verdicts shown in more than one place (dashboard problem check, admin page) belong in a core use case that returns a reason, not in the problem check adapter.
 - 2026-10-01 [review] Lists with inline delete actions and offset-based paging skip a record on the next page after each delete — decide the paging scheme (cursor vs offset) at design time.
+- 2026-10-01 [review] When adding a channel alongside a core feature (mobile push next to browser push), list where its behaviour differs from core (delays, filters, preferences) and document those differences.
 - 2026-10-01 [review] Provider errors that may mean "one recipient" or "whole configuration" (e.g. FCM `SENDER_ID_MISMATCH`) — classify as configuration, but make health alerts require breadth (several recipients) so one stray token cannot raise a permanent alarm.
 
 ## Implementation Craft
@@ -33,11 +34,14 @@ Experiential patterns from practice. Complements standards (what should be) with
 - 2026-10-01 [implementation] Discourse does not load a disabled plugin's frontend code — "plugin disabled" states inside the plugin's own UI are unreachable dead code; don't build or spec them.
 - 2026-10-01 [implementation] Discourse plugin admin page — `add_admin_route ..., use_new_show_route: true`, a route map under `admin.adminPlugins.show`, `api.addAdminPluginConfigurationNav` in an initializer, admin code under `admin/assets/javascripts`, and a server route `get "/admin/plugins/<id>/<tab>" => "admin/plugins#index"` so a hard refresh works.
 - 2026-10-01 [implementation] Discourse system specs run under `docker:test` only with `RUN_SYSTEM_TESTS=1` — confirm a new gate stage actually executes them by checking the system example count.
+- 2026-10-01 [implementation] Before planning GitHub-side release steps (tags, releases, repo settings), check `gh auth status` and `gh api repos/<owner>/<repo> --jq .permissions` — git push and `gh` can be signed in as different accounts.
+- 2026-10-01 [implementation] Discourse plugin metadata — core parses `meta_topic_id` with `Integer()`, so a placeholder is silently dropped (remove it until a topic exists); a comment-only `.discourse-compatibility` parses as empty and is safe to ship.
 - 2026-10-01 [implementation] Deleting a key from a locale YAML — check the surrounding lines; a lost newline breaks parsing and only the i18n lint step catches it.
 
 ## Quality Signals
 <!-- Recurring quality issues that keep appearing despite rules -->
 - 2026-10-01 [review] Auth and API-key scope tests written only for the first endpoint — cover authentication and scope on every endpoint, especially logout/unregister paths that apps depend on.
+- 2026-10-01 [implementation] Public API docs should state the forward-compatibility rule (clients ignore unknown fields and types) from the first release, so later additive changes aren't breaking.
 - 2026-10-01 [review] A slice that ships a contract external clients consume (e.g. the push `data` payload) must update its reference doc and changelog in the same slice — don't defer to a later docs slice.
 - 2026-10-01 [review] Jobs that re-load records by id — test the "record gone" path for every record loaded (user and device), not only the main one.
 - 2026-10-01 [review] Controllers coercing query params with `to_i`/`downcase` crash with a 500 on array params (`?page[]=1`) — validate the type of every query param, not only body params.

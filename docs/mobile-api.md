@@ -2,7 +2,17 @@
 
 Reference for apps that register devices with `discourse-mobile-push`. The API is versioned in the path; breaking changes ship under a new version (`/mobile-push/v2/...`) and v1 keeps working.
 
+Within v1, new optional request fields, response fields, push `data` keys and `data.type` values may be added. Apps should ignore keys and types they don't recognise.
+
 All endpoints return JSON. Send request bodies as JSON (`Content-Type: application/json`) or form data.
+
+## Typical app flow
+
+1. The user signs in to Discourse from the app (for example by obtaining a User API key with the `discourse-mobile-push:devices` scope).
+2. The app gets its FCM registration token from the Firebase SDK and [registers the device](#register-a-device).
+3. On every app start, and whenever the Firebase SDK reports a new token, the app registers again. Registration is idempotent.
+4. When a push arrives and the user taps it, the app opens the `url` from the [push payload](#push-payload).
+5. On logout, the app [unregisters the device](#unregister-a-device) before discarding its credentials.
 
 ## Authentication
 
@@ -54,7 +64,7 @@ Responses:
 | `200` | Existing device updated |
 | `400` | Missing field, non-string value, or token in the query string |
 | `422` | Validation failed (`errors` lists the reasons) |
-| `429` | More than 20 registrations per minute for this user |
+| `429` | More than 20 registrations per minute for this user (staff are exempt) |
 
 ```json
 {
@@ -138,6 +148,8 @@ Titles are truncated to 150 characters and bodies to 500.
 
 **Priority**: notification types listed in `mobile_push_high_priority_notification_types` (by default `private_message`, `mentioned` and `chat_mention`) are sent with Android `high` priority; everything else uses `normal`.
 
+**iOS**: devices registered with `platform: "ios"` receive the same message through Firebase's APNs integration (the Firebase project needs an APNs key). v1 sets no APNs-specific options, so the priority setting applies to Android only.
+
 **Test notifications**: an administrator can send a test notification to a device from the admin diagnostics. Its `data` contains only `type` (`test`) and `url` (the forum's base URL); it is sent with `high` priority and the same text in every privacy mode. Apps should open the forum's home page, or simply show it.
 
-**Delivery**: Discourse's own rules decide who is notified, including do-not-disturb and push notification filters from other plugins. Temporary Firebase failures are retried with backoff. A device whose token Firebase reports as unregistered or invalid is removed; the app re-registers it on its next start.
+**Delivery**: Discourse's own rules decide who is notified, including do-not-disturb and push notification filters from other plugins. Pushes are sent straight away, even while the user is active on the website (Discourse's `push_notification_time_window_mins` delay applies only to browser push). Temporary Firebase failures are retried with backoff. A device whose token Firebase reports as unregistered or invalid is removed; the app re-registers it on its next start.

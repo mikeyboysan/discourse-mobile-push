@@ -11,7 +11,7 @@ The design these slices implement, and every decision taken while building them,
 | 3 | Notification dispatch (first end-to-end milestone) | Done | `99f4d5f` |
 | 4 | Admin diagnostics API and dashboard problem check | Done | `48767d3` |
 | 5 | Admin page (Ember) | Done | `112acfe` |
-| 6 | Documentation and release files | Planned | -- |
+| 6 | Documentation and release files | Done | (pending commit) |
 
 Supporting commits outside the slices: `3eb3f52` (migrated-database snapshot for faster spec runs) and `a2a7ac4` (schema annotation on the `Device` model).
 
@@ -100,13 +100,15 @@ Supporting commits outside the slices: `3eb3f52` (migrated-database snapshot for
 
 **Result**: verification green (278 examples plus 26 system examples).
 
-## Slice 6: Documentation and release files -- planned
+## Slice 6: Documentation and release files
 
 **Goal**: the plugin ready for public release (proposal section 35).
 
-**Planned scope**
-- `README.md` explaining what the plugin does and doesn't do, the architecture, how the mobile API and authentication work, Firebase setup, and how to develop and test.
-- `CONTRIBUTING.md` and `SECURITY.md`; review `LICENSE`.
-- `.discourse-compatibility`, `meta_topic_id` in `plugin.rb`, and the first versioned `CHANGELOG.md` release section.
-- Final pass over `docs/mobile-api.md`.
-- Set the context document status to `complete`.
+**Scope**
+- `README.md`: what the plugin does and doesn't do, requirements, Firebase setup (least-privilege service account, key via setting or environment), configuration, architecture, mobile API and authentication, security, development and testing.
+- `CONTRIBUTING.md` (workflow, design rules, release steps) and `SECURITY.md` (GitHub private vulnerability reporting); `LICENSE` reviewed (MIT, unchanged).
+- `.discourse-compatibility` (comments only until the first pin); `plugin.rb` version 1.0.0, placeholder `meta_topic_id` removed; `CHANGELOG.md` section `[1.0.0] - 2026-10-01`.
+- `docs/mobile-api.md`: v1 forward-compatibility rule, typical app flow, iOS note.
+- Context document status set to `complete`; release tagged `v1.0.0`.
+
+**Result**: verification green.
