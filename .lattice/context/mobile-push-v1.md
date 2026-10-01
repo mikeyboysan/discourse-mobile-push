@@ -398,4 +398,5 @@ Device JSON: {id, platform, app_id, app_version, device_identifier, token_finger
 | `bin/docker-test` | Runs lint/spec in the Discourse test image; `prepare` builds the migrated-DB snapshot |
 | `.lattice/verification.yaml` | Verification gate stages |
 | `docs/mobile-api.md` | Mobile API v1 reference for app developers |
+| `docs/implementation-slices.md` | The six implementation slices: scope, status and commit of each |
 | `CHANGELOG.md` | Release notes (Keep a Changelog) |
