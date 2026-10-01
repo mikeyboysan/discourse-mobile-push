@@ -13,3 +13,11 @@
 - **Result**: 0 critical, 3 warning, 5 suggestion
 - **Key findings**: RateLimiter test without redis snapshotting; API-key scope and login only tested on POST; v1 API undocumented (borderline, docs planned slice 6)
 - **Strengths**: tokens never leave the server (fingerprint, filter_attributes, log filter, body-only); savepoint retry handles races
+- **Note**: the redis-snapshotting finding was later found invalid (core flushes Redis after every example); reverted in slice 2
+
+## 2026-10-01 — slice 2: PushMessage, DeliveryResult, PushProvider port, FCM adapter (uncommitted)
+- **Scope**: 18 files; core value objects, port, outbound adapter (`fcm/`), composition root, specs
+- **Atoms**: clean-code, knowledge-priming, architecture, secure-coding, test-quality; custom: Discourse Compatibility
+- **Result**: 0 critical, 1 warning, 5 suggestion
+- **Key findings**: untested ServiceAccount error branches (non-string field, unparsable token_uri); blank access token cacheable; SENDER_ID_MISMATCH ambiguity deferred to slice 4 problem check
+- **Strengths**: secrets contained — parsed key object, fixed parse messages, token scrubbing, token_uri allowlist; only explicit UNREGISTERED/token violations delete devices

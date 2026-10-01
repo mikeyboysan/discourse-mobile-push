@@ -14,6 +14,8 @@ module ::DiscourseMobilePush
   PLUGIN_NAME = "discourse-mobile-push"
 
   def self.settings = Settings.current
+
+  def self.provider = Fcm::Provider.new
 end
 
 require_relative "lib/discourse_mobile_push/engine"

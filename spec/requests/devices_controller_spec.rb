@@ -112,8 +112,6 @@ RSpec.describe DiscourseMobilePush::DevicesController do
       end
 
       context "with rate limiting enabled" do
-        use_redis_snapshotting
-
         before { RateLimiter.enable }
 
         it "rejects registrations beyond the per-minute limit" do

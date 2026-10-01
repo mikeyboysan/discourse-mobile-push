@@ -54,6 +54,15 @@ status: approved
 | 2026-10-01 | [Impl slice 1] Verification gate: `.lattice/verification.yaml` runs `bin/docker-test lint` (rubocop, stree, i18n lint) and `bin/docker-test spec` (plugin RSpec) in `discourse/discourse_test:release` with `NO_UPDATE=1`; `docker.exe` used from WSL; host `node_modules` masked by an anonymous volume; `.gitattributes` forces LF | No local Ruby; WSL has no Docker integration; node_modules over the Windows mount made lint take 6.5 min (now ~10 s); CRLF breaks bash and stree | Full `docker:test` lint (pnpm/playwright install each run) |
 | 2026-10-01 | [Tooling] `bin/docker-test prepare` commits a local snapshot of the test image with the core DB migrated (`docker:test:setup`, clean `pg_ctl stop`); `spec` uses it with `SKIP_DB_CREATE=1` only when its `base-image-id` label matches the local test image, else falls back to a full migrate | Core migrations were ~70 s of the ~110 s spec stage; snapshot run ~45 s. Fresh container per run keeps verification hermetic; label check prevents testing against a stale core | Long-lived container with `docker exec` (state leaks between runs); native WSL2 Discourse install (heavy setup) |
 | 2026-10-01 | [Impl slice 1] Slice 1 complete (skeleton, settings, Device, DeviceRegistry, Device API, user lifecycle); 56 specs green | -- | -- |
+| 2026-10-01 | [Impl slice 2] FCM `android.priority` sent as lowercase `"high"`/`"normal"` | Matches every FCM v1 documentation example; REST reference states the field takes "normal" and "high" | Enum names `HIGH`/`NORMAL` |
+| 2026-10-01 | [Impl slice 2] A 404 without the `UNREGISTERED` FCM error code is classified `config_error`, not `invalid_device`; any status carrying `UNREGISTERED` is `invalid_device`; other unlisted statuses are `rejected` | Fills a gap in the Flow 3 table. A bare 404 typically means a wrong project id, and treating it as an invalid device would delete every device site-wide | Treat every 404 as `invalid_device` |
+| 2026-10-01 | [Impl slice 2] `ServiceAccount` holds a parsed `OpenSSL::PKey::RSA` (not the PEM) and accepts only `https` token URIs on `*.googleapis.com`; parse errors use fixed messages | Key material never appears in `inspect` or error text; a crafted service-account JSON cannot send signed assertions to an arbitrary host | Store PEM string; trust `token_uri` as given |
+| 2026-10-01 | [Impl slice 2] Access tokens cached in `Discourse.redis` under `discourse_mobile_push:fcm_access_token:<fingerprint>` for `expires_in - 300 s` (min 60 s); fingerprint = SHA-256 of client email + public key DER (16 hex) | Per-site Redis namespace; rotating credentials changes the key so stale tokens are never reused | Cache keyed by project id (survives key rotation) |
+| 2026-10-01 | [Impl slice 2] Base64url encoded with `pack("m0")` rather than the `base64` library | `base64` is a bundled (not default) gem from Ruby 3.4; avoids relying on core's transitive dependency | `require "base64"` |
+| 2026-10-01 | [Impl slice 2] `Provider` scrubs the device token from `DeliveryResult#detail`; network errors report only the exception class and host | Token secrecy constraint: details are stored and shown to admins | Trust FCM error messages as given |
+| 2026-10-01 | [Review slice 2] `SENDER_ID_MISMATCH` stays `config_error` (never deletes devices); slice 4's problem check must require configuration errors across more than one device, so a single stray token (e.g. a debug build registered against production) cannot keep the dashboard in alarm | The code is ambiguous between "whole project misconfigured" and "one foreign token"; deletion on a config-wide error would wipe all devices | Classify `SENDER_ID_MISMATCH` as `invalid_device` |
+| 2026-10-01 | [Review slice 2] No distributed lock around access-token refresh | Concurrent jobs at expiry each fetch one grant; harmless at Google's limits and avoids lock contention in the delivery path | `DistributedMutex` around fetch |
+| 2026-10-01 | [Impl slice 2] Slice 2 complete (PushMessage, DeliveryResult, PushProvider port, FCM adapter, provider wiring in `plugin.rb`); 148 specs green | -- | -- |
 
 ## Open Questions
 
@@ -331,7 +340,16 @@ Device JSON: {id, platform, app_id, app_version, device_identifier, token_finger
 | Path | Role |
 |---|---|
 | `docs/proposal.md` | Source proposal (requirement doc) |
-| `plugin.rb` | Composition root: metadata, enabled setting, token log filter, User API key scope, anonymisation listener |
+| `plugin.rb` | Composition root: metadata, enabled setting, provider wiring, token log filter, User API key scope, anonymisation listener |
+| `lib/discourse_mobile_push/push_message.rb` | Core value object: provider-neutral message (string data, priority) |
+| `lib/discourse_mobile_push/delivery_result.rb` | Core value object: neutral delivery outcome |
+| `lib/discourse_mobile_push/push_provider.rb` | Port: `configured?`, `deliver(message:, token:)` |
+| `lib/discourse_mobile_push/fcm/provider.rb` | Outbound adapter: FCM HTTP v1 send with one re-authentication on 401 |
+| `lib/discourse_mobile_push/fcm/service_account.rb` | Service-account JSON parsing and validation |
+| `lib/discourse_mobile_push/fcm/access_token_source.rb` | OpenSSL RS256 JWT grant and Redis-cached access token |
+| `lib/discourse_mobile_push/fcm/error_classifier.rb` | FCM response to neutral outcome mapping |
+| `lib/discourse_mobile_push/fcm/http_client.rb` | `Net::HTTP` wrapper with timeouts and network-error mapping |
+| `spec/plugin_helper.rb` | Spec helpers: test RSA key, service-account JSON, FCM stubs |
 | `config/settings.yml` | `mobile_push_*` site settings |
 | `lib/discourse_mobile_push/settings.rb` | Configuration edge (sole reader of site settings) |
 | `lib/discourse_mobile_push/device_registry.rb` | Core: device registration, listing, removal, invalidation |
