@@ -25,6 +25,14 @@ SOURCE=$(wslpath -m "$ROOT" 2>/dev/null || echo "$ROOT")
 PLUGIN_DIR=/var/www/discourse/plugins/$PLUGIN
 # The anonymous volume hides host node_modules, which is slow to traverse through the mount.
 MOUNT=(-v "$SOURCE:$PLUGIN_DIR" -v "$PLUGIN_DIR/node_modules")
+# Lint installs the plugin's own frontend toolchain, as CI does, because core's
+# @discourse/lint-configs can format .gjs differently. Named volumes cache it.
+LINT_NODE_MODULES=$PLUGIN-lint-node-modules
+LINT_MOUNT=(
+  -v "$SOURCE:$PLUGIN_DIR"
+  -v "$LINT_NODE_MODULES:$PLUGIN_DIR/node_modules"
+  -v "$PLUGIN-lint-pnpm:/home/discourse/.local/share/pnpm"
+)
 
 image_field() {
   local value
@@ -39,18 +47,28 @@ snapshot_is_current() {
     [ "$(image_field "$SNAPSHOT" "{{index .Config.Labels \"$SNAPSHOT_BASE_LABEL\"}}")" = "$base_id" ]
 }
 
+# A new volume mounted inside the bind mount is root-owned; pnpm runs as discourse.
+ensure_lint_node_modules() {
+  "$DOCKER" volume inspect "$LINT_NODE_MODULES" >/dev/null 2>&1 && return 0
+  "$DOCKER" volume create "$LINT_NODE_MODULES" >/dev/null
+  "$DOCKER" run --rm -v "$LINT_NODE_MODULES:/node_modules" --entrypoint chown "$IMAGE" \
+    discourse:discourse /node_modules ||
+    { "$DOCKER" volume rm "$LINT_NODE_MODULES" >/dev/null; return 1; }
+}
+
 case "${1:-}" in
   lint)
-    "$DOCKER" run --rm "${MOUNT[@]}" --entrypoint sudo "$IMAGE" -E -u discourse -H bash -c "
+    ensure_lint_node_modules
+    "$DOCKER" run --rm "${LINT_MOUNT[@]}" --entrypoint sudo "$IMAGE" -E -u discourse -H bash -c "
       set -e
       bundle exec rubocop plugins/$PLUGIN
       find plugins/$PLUGIN \( -name node_modules -o -name gems -o -name tmp \) -prune -o -name '*.rb' -print \
         | xargs bundle exec stree check
       bundle exec ruby script/i18n_lint.rb plugins/$PLUGIN/config/locales/{client,server}.en.yml
-      pnpm eslint --no-error-on-unmatched-pattern plugins/$PLUGIN/{assets,admin/assets,test}/javascripts
-      pnpm prettier --check --no-error-on-unmatched-pattern \
-        'plugins/$PLUGIN/{assets,admin/assets,test}/javascripts/**/*.{js,gjs}' \
-        'plugins/$PLUGIN/assets/stylesheets/**/*.scss'
+      cd plugins/$PLUGIN
+      pnpm install --frozen-lockfile --prefer-offline --store-dir ~/.local/share/pnpm/store
+      pnpm eslint --no-error-on-unmatched-pattern {assets,admin/assets,test}/javascripts
+      pnpm lint:prettier
     "
     ;;
   spec)

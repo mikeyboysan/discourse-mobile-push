@@ -71,7 +71,9 @@ export default class MobilePushDeviceRow extends Component {
       </td>
       <td class="d-table__cell --detail">
         {{i18n
-          (concat "discourse_mobile_push.admin.devices.platforms." @device.platform)
+          (concat
+            "discourse_mobile_push.admin.devices.platforms." @device.platform
+          )
         }}
       </td>
       <td class="d-table__cell --detail">

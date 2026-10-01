@@ -38,12 +38,16 @@ const MobilePushHealth = <template>
     >
       <:content>
         <dl class="mobile-push-health__facts">
-          <dt>{{i18n "discourse_mobile_push.admin.configuration.credentials"}}</dt>
+          <dt>{{i18n
+              "discourse_mobile_push.admin.configuration.credentials"
+            }}</dt>
           <dd class="mobile-push-health__credentials">
             {{#if @status.configured}}
               {{i18n "discourse_mobile_push.admin.configuration.configured"}}
             {{else}}
-              {{i18n "discourse_mobile_push.admin.configuration.not_configured"}}
+              {{i18n
+                "discourse_mobile_push.admin.configuration.not_configured"
+              }}
               {{#if @status.configuration_error}}
                 <span class="mobile-push-health__error">
                   {{@status.configuration_error}}
@@ -52,7 +56,9 @@ const MobilePushHealth = <template>
             {{/if}}
           </dd>
           {{#if @status.project_id}}
-            <dt>{{i18n "discourse_mobile_push.admin.configuration.project_id"}}</dt>
+            <dt>{{i18n
+                "discourse_mobile_push.admin.configuration.project_id"
+              }}</dt>
             <dd class="mobile-push-health__project-id">
               {{@status.project_id}}
             </dd>
@@ -80,7 +86,9 @@ const MobilePushHealth = <template>
               </span>
             {{/if}}
           </dd>
-          <dt>{{i18n "discourse_mobile_push.admin.delivery.last_config_error"}}</dt>
+          <dt>{{i18n
+              "discourse_mobile_push.admin.delivery.last_config_error"
+            }}</dt>
           <dd class="mobile-push-health__last-config-error">
             <MobilePushTimestamp
               @value={{@status.summary.last_config_error_at}}
@@ -91,7 +99,9 @@ const MobilePushHealth = <template>
               </span>
             {{/if}}
           </dd>
-          <dt>{{i18n "discourse_mobile_push.admin.delivery.invalidated_count"}}</dt>
+          <dt>{{i18n
+              "discourse_mobile_push.admin.delivery.invalidated_count"
+            }}</dt>
           <dd class="mobile-push-health__invalidated-count">
             {{@status.summary.invalidated_count}}
           </dd>
