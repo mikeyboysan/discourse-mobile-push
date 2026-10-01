@@ -1,0 +1,69 @@
+.mobile-push-diagnostics {
+  .mobile-push-health {
+    display: flex;
+    flex-direction: column;
+    gap: 1em;
+    margin-bottom: 1em;
+  }
+
+  .mobile-push-health__facts {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.5em 1.5em;
+    margin: 0;
+
+    dt {
+      font-weight: bold;
+    }
+
+    dd {
+      margin: 0;
+    }
+  }
+
+  .mobile-push-health__error,
+  .mobile-push-device-row__failure-reason {
+    display: block;
+    color: var(--danger);
+    font-size: var(--font-down-1);
+    overflow-wrap: anywhere;
+  }
+
+  .mobile-push-devices__filter {
+    display: flex;
+    gap: 0.5em;
+    margin-bottom: 1em;
+
+    input {
+      margin-bottom: 0;
+    }
+  }
+
+  .mobile-push-device-row {
+    &.--removed {
+      opacity: 0.6;
+    }
+
+    &__version,
+    &__stale {
+      color: var(--primary-medium);
+      font-size: var(--font-down-1);
+    }
+
+    &__test-result {
+      display: block;
+      margin-bottom: 0.25em;
+
+      &.--delivered {
+        color: var(--success);
+      }
+
+      &.--invalid_device,
+      &.--retryable,
+      &.--config_error,
+      &.--rejected {
+        color: var(--danger);
+      }
+    }
+  }
+}

@@ -8,6 +8,7 @@ Experiential patterns from practice. Complements standards (what should be) with
 - 2026-10-01 [design] Fan-out to N external recipients — one job per recipient with per-job retries avoids duplicate sends without cross-recipient bookkeeping (in Discourse, retry by quiet re-enqueue: raised job errors are logged on every attempt).
 - 2026-10-01 [review] New user-owned tables slip through design without deletion rules — decide user deletion/anonymisation behaviour (FK cascade, cleanup hook) at design time.
 - 2026-10-01 [review] Health verdicts shown in more than one place (dashboard problem check, admin page) belong in a core use case that returns a reason, not in the problem check adapter.
+- 2026-10-01 [review] Lists with inline delete actions and offset-based paging skip a record on the next page after each delete — decide the paging scheme (cursor vs offset) at design time.
 - 2026-10-01 [review] Provider errors that may mean "one recipient" or "whole configuration" (e.g. FCM `SENDER_ID_MISMATCH`) — classify as configuration, but make health alerts require breadth (several recipients) so one stray token cannot raise a permanent alarm.
 
 ## Implementation Craft
@@ -29,6 +30,10 @@ Experiential patterns from practice. Complements standards (what should be) with
 - 2026-10-01 [implementation] Discourse `RateLimiter` skips staff unless `apply_limit_to_staff: true` (needed for admin-only actions); rate-limit specs must call `RateLimiter.enable`.
 - 2026-10-01 [review] Matching on usernames — resolve through Discourse (`User.find_by_username` / `User.normalize_username`), never a hand-rolled `downcase` (Unicode usernames).
 - 2026-10-01 [implementation] Red lint stage — diagnose by running `rubocop --format simple` / `script/i18n_lint.rb` directly in the test container rather than opening the stage log.
+- 2026-10-01 [implementation] Discourse does not load a disabled plugin's frontend code — "plugin disabled" states inside the plugin's own UI are unreachable dead code; don't build or spec them.
+- 2026-10-01 [implementation] Discourse plugin admin page — `add_admin_route ..., use_new_show_route: true`, a route map under `admin.adminPlugins.show`, `api.addAdminPluginConfigurationNav` in an initializer, admin code under `admin/assets/javascripts`, and a server route `get "/admin/plugins/<id>/<tab>" => "admin/plugins#index"` so a hard refresh works.
+- 2026-10-01 [implementation] Discourse system specs run under `docker:test` only with `RUN_SYSTEM_TESTS=1` — confirm a new gate stage actually executes them by checking the system example count.
+- 2026-10-01 [implementation] Deleting a key from a locale YAML — check the surrounding lines; a lost newline breaks parsing and only the i18n lint step catches it.
 
 ## Quality Signals
 <!-- Recurring quality issues that keep appearing despite rules -->
@@ -36,6 +41,7 @@ Experiential patterns from practice. Complements standards (what should be) with
 - 2026-10-01 [review] A slice that ships a contract external clients consume (e.g. the push `data` payload) must update its reference doc and changelog in the same slice — don't defer to a later docs slice.
 - 2026-10-01 [review] Jobs that re-load records by id — test the "record gone" path for every record loaded (user and device), not only the main one.
 - 2026-10-01 [review] Controllers coercing query params with `to_i`/`downcase` crash with a 500 on array params (`?page[]=1`) — validate the type of every query param, not only body params.
+- 2026-10-01 [review] UI components that start overlapping loads (filter, paging) must ignore responses from requests that are no longer the latest, or a slow earlier response overwrites newer results.
 - 2026-10-01 [review] Error paths keep slipping through (second review in a row) — parsers of untrusted or admin-supplied input need a spec for every explicit raise/rescue branch, not just the common failures.
 
 ## Reliability

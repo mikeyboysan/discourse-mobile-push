@@ -1,5 +1,62 @@
 en:
   admin_js:
+    discourse_mobile_push:
+      admin:
+        title: "Mobile Push"
+        never: "Never"
+        diagnostics:
+          title: "Diagnostics"
+          description: "Firebase configuration, delivery health and the devices registered to receive push notifications."
+        problem:
+          not_configured: "Push notifications cannot be delivered: the Firebase service account key is missing or invalid."
+          config_errors: "Firebase rejected push notifications for several devices in the last day because of a configuration problem (for example a wrong project ID or missing permissions)."
+        configuration:
+          heading: "Firebase configuration"
+          credentials: "Service account key"
+          configured: "Configured"
+          not_configured: "Not configured"
+          project_id: "Project ID"
+        delivery:
+          heading: "Delivery"
+          last_success: "Last successful delivery"
+          last_failure: "Last failure"
+          last_config_error: "Last configuration error"
+          invalidated_count: "Devices removed for invalid tokens"
+        devices:
+          total: "Devices"
+          stale: "Stale devices"
+          stale_tooltip: "Devices not seen for longer than the mobile push stale device days setting."
+          platforms:
+            android: "Android"
+            ios: "iOS"
+        app_versions:
+          heading: "App versions"
+          app: "App"
+          version: "Version"
+          count: "Devices"
+          unknown_version: "Unknown"
+        browser:
+          heading: "Registered devices"
+          username_placeholder: "Filter by username"
+          filter: "Filter"
+          load_more: "Load more"
+          empty: "No devices found."
+          user: "User"
+          platform: "Platform"
+          app: "App"
+          token: "Token fingerprint"
+          last_seen: "Last seen"
+          last_delivered: "Last delivered"
+          last_failure: "Last failure"
+          stale: "stale"
+          send_test: "Send test"
+          confirm_test: "Send a test notification to this device of %{username}? It will appear on their phone."
+          outcome:
+            delivered: "Test notification delivered"
+            invalid_device: "Token no longer valid; the device was removed"
+            retryable: "Temporary failure"
+            config_error: "Configuration error"
+            rejected: "Rejected by Firebase"
     admin:
       site_settings:
         categories:

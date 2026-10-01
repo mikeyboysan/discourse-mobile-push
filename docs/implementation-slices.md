@@ -10,7 +10,7 @@ The design these slices implement, and every decision taken while building them,
 | 2 | FCM HTTP v1 push provider | Done | `3f809f6` |
 | 3 | Notification dispatch (first end-to-end milestone) | Done | `99f4d5f` |
 | 4 | Admin diagnostics API and dashboard problem check | Done | `48767d3` |
-| 5 | Admin page (Ember) | Planned | -- |
+| 5 | Admin page (Ember) | Done | (pending commit) |
 | 6 | Documentation and release files | Planned | -- |
 
 Supporting commits outside the slices: `3eb3f52` (migrated-database snapshot for faster spec runs) and `a2a7ac4` (schema annotation on the `Device` model).
@@ -86,16 +86,19 @@ Supporting commits outside the slices: `3eb3f52` (migrated-database snapshot for
 
 **Result**: verification green. Review: 0 critical, 3 warnings, 4 suggestions, all fixed.
 
-## Slice 5: Admin page (Ember) -- planned
+## Slice 5: Admin page (Ember)
 
 **Goal**: the slice 4 diagnostics available in the Discourse admin UI.
 
-**Planned scope**
-- A tab on the plugin's admin page, `/admin/plugins/discourse-mobile-push/...` (`add_admin_route` show route, `addAdminPluginConfigurationNav`), kept separate from the `/admin/mobile-push` JSON paths.
-- Health summary from `status.json`: enabled, configured, project ID, configuration error, health problem, last success and failure, invalidated count, device counts by platform and app version, stale devices.
-- Device browser from `devices.json`: paging, username filter, token fingerprints only, last seen / delivered / failure, stale flag.
-- Test send button per device, showing the outcome and detail.
-- Client locale strings and system specs.
+**Scope**
+- A "Diagnostics" tab on the plugin's admin page at `/admin/plugins/discourse-mobile-push/diagnostics` (`add_admin_route` with the new show route, `addAdminPluginConfigurationNav`, plugin icon), kept separate from the `/admin/mobile-push` JSON paths; a server route serves the page on a full page load.
+- Health summary from `status.json`: health problem notice, device counts (total, stale, per platform), Firebase configuration (credentials, project ID, sanitised error), delivery (last success, last failure, last configuration error, invalidated count) and app versions.
+- Device browser from `devices.json`: username filter, "Load more" paging, token fingerprints only, last seen (with stale flag), last delivered, last failure.
+- Test send per device after a confirmation dialog, showing the outcome inline; a device removed for an invalid token is marked as removed.
+- Admin-only locale strings (`admin_js`) and an admin stylesheet.
+- Verification gate extended: ESLint and Prettier in the lint stage, system specs in the spec stage.
+
+**Result**: verification green (278 examples plus 26 system examples).
 
 ## Slice 6: Documentation and release files -- planned
 

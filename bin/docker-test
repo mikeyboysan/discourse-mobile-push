@@ -47,6 +47,10 @@ case "${1:-}" in
       find plugins/$PLUGIN \( -name node_modules -o -name gems -o -name tmp \) -prune -o -name '*.rb' -print \
         | xargs bundle exec stree check
       bundle exec ruby script/i18n_lint.rb plugins/$PLUGIN/config/locales/{client,server}.en.yml
+      pnpm eslint --no-error-on-unmatched-pattern plugins/$PLUGIN/{assets,admin/assets,test}/javascripts
+      pnpm prettier --check --no-error-on-unmatched-pattern \
+        'plugins/$PLUGIN/{assets,admin/assets,test}/javascripts/**/*.{js,gjs}' \
+        'plugins/$PLUGIN/assets/stylesheets/**/*.scss'
     "
     ;;
   spec)
@@ -59,7 +63,8 @@ case "${1:-}" in
       echo "Snapshot $SNAPSHOT missing or stale; migrating from scratch (run bin/docker-test prepare to speed this up)."
     fi
     "$DOCKER" run --rm "${MOUNT[@]}" \
-      -e NO_UPDATE=1 -e SKIP_LINT=1 -e SKIP_CORE=1 -e RUBY_ONLY=1 -e SINGLE_PLUGIN="$PLUGIN" "${SPEC_ENV[@]}" \
+      -e NO_UPDATE=1 -e SKIP_LINT=1 -e SKIP_CORE=1 -e RUBY_ONLY=1 -e RUN_SYSTEM_TESTS=1 \
+      -e SINGLE_PLUGIN="$PLUGIN" "${SPEC_ENV[@]}" \
       "$SPEC_IMAGE"
     ;;
   prepare)

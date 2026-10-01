@@ -35,3 +35,10 @@
 - **Result**: 0 critical, 3 warning, 4 suggestion
 - **Key findings**: array page param causes a 500; username match bypasses Discourse normalisation; health rule in the problem check adapter with one message for two causes
 - **Strengths**: token secrecy verified in admin JSON and the staff log; config-error breadth tracked per device
+
+## 2026-10-01 — slice 5: admin diagnostics page (uncommitted)
+- **Scope**: 17 files; admin Ember route/template/components, route map, initializer, styles, routes, locales, gate tooling, system specs
+- **Atoms**: clean-code, knowledge-priming, architecture, secure-coding, test-quality; custom: Mobile API Compatibility, Discourse Compatibility
+- **Result**: 0 critical, 1 warning, 3 suggestion
+- **Key findings**: out-of-order device list responses overwrite newer filter results; offset paging skips a device after a removal (accepted as a known limitation); empty state untested
+- **Strengths**: admin JS only downloaded by admins; system spec asserts the full token never reaches the page

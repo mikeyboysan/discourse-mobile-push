@@ -15,4 +15,5 @@ All notable changes to this plugin are documented here. The format follows [Keep
 - `full` and `generic` privacy modes, and high priority for configurable notification types.
 - Temporary Firebase failures are retried with backoff (up to 5 attempts, honouring `Retry-After`); devices whose tokens Firebase reports as unregistered or invalid are removed automatically.
 - Admin diagnostics API (admins only) under `/admin/mobile-push`: configuration status, delivery summary and device counts; a device browser with tokens masked; and a test notification to a chosen device, recorded in the staff action log.
+- Admin page (Plugins > Mobile Push > Diagnostics): Firebase configuration, delivery health, device counts and app versions, a device browser with username filter, and a confirmed test send per device.
 - Admin dashboard warning when push is enabled but the Firebase credentials are missing or invalid, or Firebase reported configuration errors for several devices in the last day.

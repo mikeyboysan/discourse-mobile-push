@@ -88,6 +88,14 @@ status: approved
 | 2026-10-01 | [Review slice 4] Health rule moved into core `HealthCheck#problem -> nil \| :not_configured \| :config_errors`; the problem check maps each reason to its own dashboard message, and the status endpoint gains a `problem` field (additive contract change) | The verdict is policy and slice 5's admin page shows it too; admins need to know which cause to fix | Keep the rule in the problem check until slice 5 needs it |
 | 2026-10-01 | [Review slice 4] Device browser username filter resolved in the admin controller through `User.normalize_username` and passed to `DeviceRegistry#search(owners:)` as a user relation; `page` must be 1-6 digits (400 otherwise) | Unicode usernames match as Discourse matches them; Discourse username rules stay out of core; array or huge page params can no longer cause a 500 | Registry filters on `username.downcase` |
 | 2026-10-01 | [Review slice 4] Admin action renamed `send_test` (path unchanged); `string_param` extracted to `StringParams` shared by both controllers; config-error tracking writes in one Redis `multi` | Avoids shadowing `Kernel#test`; one input-validation helper; atomic and single round trip | -- |
+| 2026-10-01 | [Impl slice 5] Verification gate extended: lint stage adds ESLint and Prettier for `{assets,admin/assets,test}/javascripts` and the stylesheets (core's tooling in the test image); spec stage sets `RUN_SYSTEM_TESTS=1` so `spec/system` runs (~3 min instead of ~1 min) | Slice 5 is frontend code; the gate previously checked none of it, while CI (discourse-plugin workflow) does | Rely on CI for JS lint and system specs |
+| 2026-10-01 | [Impl slice 5] Admin page is a "Diagnostics" tab on the plugin's config page (`/admin/plugins/discourse-mobile-push/diagnostics`), registered with `add_admin_route ... use_new_show_route: true` and `addAdminPluginConfigurationNav`; a server route (`admin/plugins#index`, `AdminConstraint`) serves full page loads | Current core plugin pattern (patreon, rss-polling); keeps settings and diagnostics in one place | Standalone admin route outside the plugin page |
+| 2026-10-01 | [Impl slice 5] Device browser pages with "Load more" (appends the next page) instead of numbered pages | `devices.json` returns `total_rows` but no page size; appending needs only `devices.length < total_rows`, so the contract stays unchanged | Add `per_page` to the response |
+| 2026-10-01 | [Impl slice 5] Test send asks for confirmation in a dialog before calling the API | It shows a notification on a real user's phone; the server-side rate limit and staff log remain | Send on click |
+| 2026-10-01 | [Impl slice 5] Status loaded by the route; the device browser loads and filters its own data; a 404 from `status.json` (plugin disabled) renders a notice instead of the diagnostics | Filtering and paging stay local to the component; `requires_plugin` makes the admin API 404 while disabled | Load devices in the route too |
+| 2026-10-01 | [Impl slice 5] Admin UI strings live under `admin_js` | Loaded only for admins | `js` namespace |
+| 2026-10-01 | [Review slice 5] Known limitation: after a test send removes an invalid device, the next "Load more" skips one device until reload | The admin devices API pages by offset; cursor paging isn't worth it for an occasional admin action | Cursor pagination in the admin API; reloading the list after each removal |
+| 2026-10-01 | [Impl slice 5] Supersedes the "404 renders a notice" part of the row above: the disabled-plugin notice and the route's 404 handling were removed | A system spec showed Discourse does not load a disabled plugin's frontend code, so the plugin route and notice can never render while disabled; the branch was dead code | Keep the notice for the rare disable-while-viewing case |
 ## Open Questions
 
 None.
@@ -398,5 +406,15 @@ Device JSON: {id, platform, app_id, app_version, device_identifier, token_finger
 | `bin/docker-test` | Runs lint/spec in the Discourse test image; `prepare` builds the migrated-DB snapshot |
 | `.lattice/verification.yaml` | Verification gate stages |
 | `docs/mobile-api.md` | Mobile API v1 reference for app developers |
+| `assets/javascripts/discourse/mobile-push-admin-route-map.js` | Admin route map: `adminPlugins.show.discourse-mobile-push-diagnostics` |
+| `assets/javascripts/discourse/initializers/mobile-push-admin-plugin-configuration-nav.js` | Admin nav tab and plugin icon (admins only) |
+| `admin/assets/javascripts/discourse/lib/mobile-push-admin-api.js` | Client for the `/admin/mobile-push` JSON endpoints |
+| `admin/assets/javascripts/discourse/routes/admin-plugins/show/discourse-mobile-push-diagnostics.js` | Diagnostics route: loads status |
+| `admin/assets/javascripts/discourse/templates/admin-plugins/show/discourse-mobile-push-diagnostics.gjs` | Diagnostics page template |
+| `admin/assets/javascripts/discourse/components/mobile-push-health.gjs` | Health summary: problem, counts, configuration, delivery, app versions |
+| `admin/assets/javascripts/discourse/components/mobile-push-device-browser.gjs` | Device browser: username filter, load more |
+| `admin/assets/javascripts/discourse/components/mobile-push-device-row.gjs` | Device row with confirmed test send and inline outcome |
+| `assets/stylesheets/admin/mobile-push-admin.scss` | Admin page styles |
+| `spec/system/admin_diagnostics_spec.rb` | System specs for the admin page (page object in `spec/system/page_objects/pages/`) |
 | `docs/implementation-slices.md` | The six implementation slices: scope, status and commit of each |
 | `CHANGELOG.md` | Release notes (Keep a Changelog) |

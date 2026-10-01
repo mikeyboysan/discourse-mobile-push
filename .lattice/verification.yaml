@@ -2,7 +2,8 @@ version: 1
 runsDir: tmp/verification
 failureHint: >
   Stages run inside the discourse/discourse_test:release Docker image via bin/docker-test.
-  The lint stage runs rubocop, stree and i18n lint; the spec stage runs the plugin RSpec suite.
+  The lint stage runs rubocop, stree, i18n lint, eslint and prettier; the spec stage runs the
+  plugin RSpec suite including system specs.
   Open the failing stage's logFile for the offending files or failing examples.
 stages:
   - name: lint

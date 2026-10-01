@@ -20,4 +20,7 @@ Discourse::Application.routes.draw do
            id: /\d+/,
          }
   end
+
+  get "/admin/plugins/discourse-mobile-push/diagnostics" => "admin/plugins#index",
+      :constraints => AdminConstraint.new
 end

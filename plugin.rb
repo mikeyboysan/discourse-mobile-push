@@ -10,6 +10,12 @@
 
 enabled_site_setting :mobile_push_enabled
 
+register_asset "stylesheets/admin/mobile-push-admin.scss", :admin
+
+add_admin_route "discourse_mobile_push.admin.title",
+                "discourse-mobile-push",
+                use_new_show_route: true
+
 module ::DiscourseMobilePush
   PLUGIN_NAME = "discourse-mobile-push"
 
