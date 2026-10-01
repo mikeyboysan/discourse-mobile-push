@@ -63,12 +63,13 @@ assets/javascripts/discourse/              # admin UI
    edge (Settings)    └────────┘       └───────────┘
                           │
                           ▼
-                 Device (ActiveRecord) -- persistence port
+        Device (ActiveRecord), DiagnosticsStore (Redis) -- persistence ports
 ```
 
 - Inbound adapters depend on Core. Core never references controllers, jobs, serializers, `params`, `DiscourseEvent`, or the admin UI.
 - Outbound adapters implement Ports. Core depends on the `PushProvider` contract, never on `Fcm::*`.
-- Core may use the `DiscourseMobilePush::Device` ActiveRecord model directly; it is the persistence port (Rails-pragmatic exception).
+- Core may use the `DiscourseMobilePush::Device` ActiveRecord model and the Redis-backed `DiagnosticsStore` directly; they are the persistence ports (Rails-pragmatic exception).
+- `DiscourseMobilePush.provider` (which builds the concrete provider) is defined in the composition root, `plugin.rb`; core files never name `Fcm::*`.
 - Core receives configuration as a `Settings` object (injected or via `DiscourseMobilePush.settings`), never by calling `SiteSetting` directly.
 - Discourse internals (`DiscourseEvent`, `PostAlerter` payload keys, `Guardian`, `Jobs`, `SiteSetting`, `Discourse.redis`) appear only in adapters or the configuration edge. When an internal API must be used, it is isolated in exactly one place.
 
@@ -82,7 +83,7 @@ assets/javascripts/discourse/              # admin UI
 - Core reaches the outside only through the `PushProvider` port: `deliver(message:, token:) -> DeliveryResult`. Results carry a provider-neutral outcome: `:delivered`, `:invalid_device`, `:retryable`, `:config_error`, `:rejected`, plus a sanitized detail string.
 - Dependency injection is manual: constructor keyword arguments with production defaults (`provider: DiscourseMobilePush.provider`). No DI container, no global mutable state beyond Discourse's own.
 - Asynchrony is an adapter concern: the listener enqueues a job; the job invokes the delivery use case. Core is synchronous.
-- Retry policy lives in the job adapter, driven by the core's neutral outcomes (`:retryable` -> re-raise for Sidekiq retry).
+- Retry policy lives in the job adapter, driven by the core's neutral outcomes (`:retryable` -> the job re-enqueues itself with backoff and an attempt counter; only the final failure is logged).
 
 ---
 
@@ -115,7 +116,7 @@ assets/javascripts/discourse/              # admin UI
 ### Inbound adapters
 
 **What belongs here:**
-- Request parsing, strong params, authentication/authorization (`ensure_logged_in`, staff checks), serialization, job enqueueing, translating the Discourse alert payload into core input, admin UI.
+- Request parsing, strong params, authentication/authorization (`ensure_logged_in`, admin checks), serialization, job enqueueing, translating the Discourse alert payload into core input, admin UI.
 
 **What does not belong here:**
 - Business rules (device upsert logic, payload policy, outcome handling).
@@ -158,14 +159,14 @@ assets/javascripts/discourse/              # admin UI
 ```
 Discourse PostAlerter.push_notification(user, payload)
   -> DiscourseEvent :push_notification            [inbound: NotificationListener]
-     - skip if plugin disabled, user has no enabled devices, or a push_notification_filter rejects
-     - enqueue Jobs::DiscourseMobilePush::DeliverNotification(user_id:, payload:)
+     - skip if plugin disabled, user has no devices, or a push_notification_filter rejects
+     - enqueue Jobs::DiscourseMobilePush::DeliverToDevice(user_id:, device_id:, payload:, attempt: 1) per device
   -> Job.execute                                   [inbound: job]
-     - load user; PayloadBuilder.build(payload, settings:) -> PushMessage   [core]
-     - DeliveryService.deliver(user:, message:)                             [core]
-         for each enabled device: provider.deliver(message:, token:)        [port -> fcm adapter]
+     - AlertMapper.from_payload(payload) -> Alert; PayloadBuilder.build(alert:, locale:) -> PushMessage   [core]
+     - DeliveryService.deliver(message:, device:)                           [core]
+         provider.deliver(message:, token:)                                 [port -> fcm adapter]
          apply outcome: :invalid_device -> destroy device; :delivered -> touch; record diagnostics
-     - any :retryable outcome -> raise so Sidekiq retries (only for failed devices)
+     - :retryable outcome -> re-enqueue self with backoff until max attempts (quiet; final failure logged)
 ```
 
 ### Flow 2: Device registration

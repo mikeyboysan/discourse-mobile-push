@@ -12,7 +12,7 @@ Ruby as written inside a Discourse plugin (Rails engine, Zeitwerk autoloading).
 - Exceptions are the error mechanism. Define a namespaced base error (`DiscourseMobilePush::Error < StandardError`) and specific subclasses; rescue specific classes, never bare `rescue` or `rescue Exception`.
 - Controllers raise Discourse's own errors (`Discourse::InvalidParameters`, `Discourse::NotFound`, `Discourse::InvalidAccess`) or use `render_json_error`; the framework maps them to HTTP responses.
 - Expected outcomes of external calls (e.g. an FCM per-message rejection) are returned as result values, not raised.
-- Background jobs re-raise only transient failures so Sidekiq retries them; permanent failures are recorded and swallowed.
+- Background jobs retry transient failures by re-enqueueing themselves with backoff and an attempt counter (raising would log every attempt); permanent failures are recorded and swallowed.
 - Log unexpected exceptions with `Discourse.warn_exception(e, message: ...)`; never include secrets in error messages.
 
 ## Type System & Object Model

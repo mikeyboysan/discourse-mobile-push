@@ -36,6 +36,16 @@ status: approved
 | 2026-10-01 | [Level 4] Admin JSON endpoints live under `/admin/mobile-push/...` (separate from the Ember page path `/admin/plugins/discourse-mobile-push/...`) | Avoids route clashes with the admin plugin page | JSON under `/admin/plugins/discourse-mobile-push/...` |
 | 2026-10-01 | Requirement drift vs proposal: `fcm_token`/`registration_token` -> `token`; settings renamed to `mobile_push_*`, project id optional, added max devices / allowed app ids / high-priority types; added `DELETE /devices {token}`; invalid tokens always deleted. Not written to the proposal (user choice) | Provider neutrality (s17), Discourse conventions, validation, priority policy (s26), logout (s37), data minimisation (s22) | Record overrides in the proposal document |
 | 2026-10-01 | Design approved at Level 4. Status set to approved -- ready for implementation. | All four levels approved and persisted; traceability verified | -- |
+| 2026-10-01 | Design review (review-log 2026-10-01) reopened Levels 3 and 4; status back to draft pending re-approval | 2 critical and 5 warning findings change approved flows/contracts | Defer findings to implementation |
+| 2026-10-01 | [Level 3 rev] Registration: when the matched row would collide with another row holding (user, app_id, device_identifier), delete that stale row in the same transaction; concurrent inserts rescued (`RecordNotUnique`) and retried once as an update | Prevents 500s on shared devices and on simultaneous start-up/refresh registrations | Leave unique violations to surface as errors |
+| 2026-10-01 | [Level 3 rev] User lifecycle: `mobile_push_devices.user_id` FK with ON DELETE CASCADE; devices deleted on `:user_anonymized` | Account deletion must not fail or retain push tokens (proposal s22) | No FK and rely on cleanup job; FK without cascade (blocks user deletion) |
+| 2026-10-01 | [Level 3 rev] Retries: the per-device job re-enqueues itself with an attempt counter and exponential backoff (honouring Retry-After, max 5 attempts) instead of raising for Sidekiq retry; only the final failure is logged | Discourse logs every raised job exception; raising would flood logs during an FCM outage. Still one job per device, so no duplicate sends | Sidekiq built-in retry (supersedes earlier Level 3 decision on retry mechanism; granularity unchanged) |
+| 2026-10-01 | [Level 3 rev] Admin diagnostics endpoints and page are admin-only (not moderators) | Device browsing and pushing to arbitrary phones is privileged; matches Level 1 "administrator" | Staff (admins + moderators) |
+| 2026-10-01 | [Level 4 rev] Removed `enabled` column/field from v1 | No flow ever disables a device; avoids a permanent always-true field in the v1 API | Keep `enabled` for future use |
+| 2026-10-01 | [Level 4 rev] `DeviceRegistry#unregister` split into `unregister_by_id` and `unregister_by_token` | Removes ambiguous mutually exclusive optional arguments | Single method with two optional keywords |
+| 2026-10-01 | [Level 4 rev] `DiscourseMobilePush.provider` is defined in the composition root (`plugin.rb`); `DiagnosticsStore` is a persistence port alongside `Device` (architecture standard amended) | Core never names `Fcm::*`; Redis-backed diagnostics treated like the AR persistence port | Dedicated `DiagnosticsPort` base class |
+| 2026-10-01 | Revised Levels 3 and 4 re-approved; status restored to approved | Review findings resolved in the design | -- |
+| 2026-10-01 | [Level 4 rev] `token` travels only in request bodies (never query strings) and is filtered from request logs; `AlertMapper` accepts only same-site URLs and string or symbol keys; `PayloadBuilder` truncates title/body to stay under FCM's 4 KB limit | Token secrecy constraint; defence against stray absolute links from other plugins; Sidekiq JSON round-trip; FCM size limit | -- |
 
 ## Open Questions
 
@@ -94,15 +104,20 @@ flowchart LR
 
 ## Design: Level 3 -- Interactions
 
+> Revised after the 2026-10-01 design review -- re-approved 2026-10-01.
+
 ### Flow 1: Register / list / unregister
-1. App -> Device API: `POST /mobile-push/v1/devices` {platform, app_id, token, app_version, device_identifier?} using any standard Discourse auth.
-2. Device API: rate-limit per user, validate, call Device Registry with (user, attributes):
+1. App -> Device API: `POST /mobile-push/v1/devices` with JSON body {platform, app_id, token, app_version, device_identifier?} using any standard Discourse auth. The token is never sent in a query string and is filtered from request logs.
+2. Device API: rate-limit per user, validate, call Device Registry with (user, attributes). In one transaction:
    - token exists -> update it (transfer owner if a different user);
    - else matching (user, app_id, device_identifier) -> replace token;
    - else create, then evict least-recently-seen devices beyond the per-user cap;
-   - always set `last_seen_at`, re-enable.
+   - if the row being written would collide with another row holding (user, app_id, device_identifier), delete that stale row first;
+   - always set `last_seen_at`;
+   - a concurrent insert of the same token (`RecordNotUnique`) is retried once as an update.
 3. Device API -> App: device with token fingerprint only (201 created / 200 updated).
-4. `GET` lists own devices; `DELETE /devices/:id` or `DELETE /devices` {token} removes own device only (404 otherwise).
+4. `GET` lists own devices; `DELETE /devices/:id` or `DELETE /devices` with body {token} removes own device only (404 otherwise).
+5. User lifecycle: deleting a user cascades to their devices (FK ON DELETE CASCADE); anonymising a user (`:user_anonymized`) deletes their devices.
 
 ### Flow 2: Notification dispatch
 ```mermaid
@@ -116,18 +131,19 @@ sequenceDiagram
   participant R as Device Registry
   PA->>L: :push_notification(user, alert payload)
   L->>L: plugin enabled? provider configured? push filters pass?
-  L->>R: user's enabled device ids
-  L->>J: enqueue per device (user_id, alert payload, device_id)
-  J->>PB: alert payload + Settings
-  PB-->>J: PushMessage (title, body, data incl. absolute url, priority)
+  L->>R: user's device ids
+  L->>J: enqueue per device (user_id, alert payload, device_id, attempt 1)
+  J->>PB: Alert (via AlertMapper) + Settings
+  PB-->>J: PushMessage (title, body truncated; data incl. same-site absolute url; priority)
   J->>DS: deliver(message, device)
   DS->>P: deliver(message, token)
   P-->>DS: DeliveryResult(outcome, sanitized detail)
   DS->>R: delivered: touch / invalid_device: remove / rejected: record failure
   DS-->>J: outcome
-  J->>J: retryable: raise (Sidekiq retry) / config_error: record, no retry
+  J->>J: retryable and attempt < 5: re-enqueue self with backoff (Retry-After honoured)
+  J->>J: retryable at attempt 5: record final failure (logged once) / config_error: record, stop
 ```
-Every outcome also updates the per-site Redis summary.
+Every outcome also updates the per-site Redis summary. Retries are quiet re-enqueues, so a Firebase outage does not produce an error log per attempt.
 
 ### Flow 3: FCM adapter
 1. Settings -> service account (project_id, client_email, private_key, token_uri); missing/invalid -> `config_error`.
@@ -135,13 +151,15 @@ Every outcome also updates the per-site Redis summary.
 3. POST `https://fcm.googleapis.com/v1/projects/{id}/messages:send` {message: {token, notification, data, android: {priority}}} with Bearer token and short timeouts.
 4. Classify (adapter only): 200 delivered; 404 UNREGISTERED / 400 INVALID_ARGUMENT on `message.token` invalid_device; other 400 rejected; 401 refresh + retry once then config_error; 403 PERMISSION_DENIED / SENDER_ID_MISMATCH / THIRD_PARTY_AUTH_ERROR config_error; 429 retryable (Retry-After); 5xx/timeouts retryable.
 
-### Flow 4: Admin diagnostics
+### Flow 4: Admin diagnostics (admins only, not moderators)
 - Status: Settings state + Registry counts (platform, app/version, not seen for N days) + Redis summary.
 - Device browser: paged, filter by username, masked tokens.
 - Test send: synchronous, tight timeouts, via DeliveryService; result returned immediately; staff action logged.
 - Problem check (dashboard load): enabled and (credentials missing/invalid or config error in last 24h) -> problem.
 
 ## Design: Level 4 -- Contracts
+
+> Revised after the 2026-10-01 design review -- re-approved 2026-10-01.
 
 ### Core value objects and port (`lib/discourse_mobile_push/`)
 ```ruby
@@ -162,7 +180,7 @@ module DiscourseMobilePush
     def deliver(message:, token:) = raise NotImplementedError     # -> DeliveryResult
   end
 
-  def self.provider -> PushProvider
+  def self.provider -> PushProvider   # defined in the composition root (plugin.rb); core never names Fcm::*
   def self.settings -> Settings
 end
 ```
@@ -191,13 +209,12 @@ class Device < ActiveRecord::Base # table mobile_push_devices
   PLATFORMS = %w[android ios]
   MAX_TOKEN_LENGTH = 1024
   belongs_to :user
-  scope :enabled
   def token_fingerprint -> String
   def stale?(days:) -> Boolean
   def record_delivery!(at:) -> void
   def record_failure!(reason:, at:) -> void
 end
-# columns: user_id, platform, app_id, device_identifier?, token (unique), app_version?, enabled,
+# columns: user_id (FK users ON DELETE CASCADE), platform, app_id, device_identifier?, token (unique), app_version?,
 #   last_seen_at, last_delivered_at?, last_failure_at?, last_failure_reason?, timestamps
 # indexes: unique(token); unique(user_id, app_id, device_identifier) WHERE device_identifier IS NOT NULL; (user_id, last_seen_at)
 
@@ -205,8 +222,10 @@ class DeviceRegistry
   Registration = Data.define(:platform, :app_id, :token, :app_version, :device_identifier)
   Result = Data.define(:device, :created)
   def initialize(settings: DiscourseMobilePush.settings)
-  def register(user:, registration:) -> Result   # raises ActiveRecord::RecordInvalid
-  def unregister(user:, device_id: nil, token: nil) -> Boolean
+  def register(user:, registration:) -> Result   # one transaction; resolves key collisions; retries RecordNotUnique once; raises ActiveRecord::RecordInvalid
+  def unregister_by_id(user:, device_id:) -> Boolean
+  def unregister_by_token(user:, token:) -> Boolean
+  def remove_all_for(user:) -> void              # used on :user_anonymized
   def invalidate(device:) -> void
 end
 ```
@@ -214,8 +233,11 @@ end
 ### Notification Dispatch
 ```ruby
 class NotificationListener; def self.call(user, payload) -> void; end          # inbound
-class AlertMapper; def self.from_payload(payload, base_url:) -> Alert; end      # inbound
+class AlertMapper                                                               # inbound
+  def self.from_payload(payload, base_url:) -> Alert  # string or symbol keys; url only if relative or on base_url host
+end
 class PayloadBuilder                                                            # core
+  MAX_TITLE_LENGTH, MAX_BODY_LENGTH                                             # keep message under FCM 4 KB
   def initialize(settings: DiscourseMobilePush.settings)
   def build(alert:, locale:) -> PushMessage
   def build_test(locale:) -> PushMessage
@@ -224,18 +246,18 @@ class DeliveryService                                                           
   def initialize(provider: DiscourseMobilePush.provider, registry: DeviceRegistry.new, diagnostics: DiagnosticsStore.new)
   def deliver(message:, device:) -> DeliveryResult
 end
-class DiagnosticsStore                                                          # outbound (Discourse.redis)
+class DiagnosticsStore                                                          # persistence port (Discourse.redis), like Device
   Summary = Data.define(:last_success_at, :last_failure_at, :last_failure_detail,
                         :last_config_error_at, :last_config_error_detail, :invalidated_count)
   def record(result:, at: Time.zone.now) -> void
   def summary -> Summary
 end
 module ::Jobs::DiscourseMobilePush
-  class DeliverToDevice < ::Jobs::Base # args: user_id, device_id, payload; retry: 5
-    def execute(args) -> void          # raises RetryableDeliveryError on :retryable
+  class DeliverToDevice < ::Jobs::Base # args: user_id, device_id, payload, attempt; sidekiq retry disabled
+    MAX_ATTEMPTS = 5
+    def execute(args) -> void          # :retryable -> Jobs.enqueue_in(backoff, ..., attempt + 1) until MAX_ATTEMPTS
   end
 end
-class RetryableDeliveryError < Error; attr_reader :retry_after; end
 ```
 
 ### FCM adapter (`lib/discourse_mobile_push/fcm/`)
@@ -270,17 +292,17 @@ end
 | POST | `/mobile-push/v1/devices` {platform, app_id, token, app_version?, device_identifier?} | 201 / 200 {device} | 400, 403, 422 {errors}, 429 |
 | GET | `/mobile-push/v1/devices` | 200 {devices} | 403 |
 | DELETE | `/mobile-push/v1/devices/:id` | 204 | 403, 404 |
-| DELETE | `/mobile-push/v1/devices` {token} | 204 | 403, 404 |
+| DELETE | `/mobile-push/v1/devices` body {token} | 204 | 403, 404 |
 
-Device JSON: {id, platform, app_id, app_version, device_identifier, token_fingerprint, enabled, last_seen_at, created_at}. Validation: platform android|ios; app_id `[A-Za-z0-9][A-Za-z0-9._-]{0,254}` (+ allowlist); token 1..1024 chars, no whitespace; app_version <= 50; device_identifier <= 255. Auth: `ensure_logged_in` + User API key scope `discourse-mobile-push:devices`.
+Device JSON: {id, platform, app_id, app_version, device_identifier, token_fingerprint, last_seen_at, created_at}. Validation: platform android|ios; app_id `[A-Za-z0-9][A-Za-z0-9._-]{0,254}` (+ allowlist); token 1..1024 chars, no whitespace, body only (filtered from logs); app_version <= 50; device_identifier <= 255. Auth: `ensure_logged_in` + User API key scope `discourse-mobile-push:devices`.
 
 ### Push data contract (string values)
 `type` ("notification" | "test"), `notification_type`, `notification_type_id`, `url` (absolute; always present), and when present `topic_id`, `post_number`, `post_id`, `channel_id`. No post text in data.
 
-### Admin API (staff) and problem check
+### Admin API (admins only) and problem check
 | Method | Path | Returns |
 |---|---|---|
-| GET | `/admin/mobile-push/status.json` | {enabled, configured, project_id, configuration_error, summary, counts{total, enabled, stale, by_platform, by_app_version}} |
+| GET | `/admin/mobile-push/status.json` | {enabled, configured, project_id, configuration_error, summary, counts{total, stale, by_platform, by_app_version}} |
 | GET | `/admin/mobile-push/devices.json?username=&page=` | {devices (+username), total_rows, page} |
 | POST | `/admin/mobile-push/devices/:id/test.json` | {outcome, detail} |
 
@@ -288,7 +310,7 @@ Device JSON: {id, platform, app_id, app_version, device_identifier, token_finger
 
 ## Design Summary
 
-- **Components and layers**: Device Registry (core + persistence: `Device`, `DeviceRegistry`), Device API (inbound HTTP: `/mobile-push/v1/devices`), Notification Dispatch (inbound `NotificationListener`, `AlertMapper`, `Jobs::DiscourseMobilePush::DeliverToDevice`; core `PayloadBuilder`, `DeliveryService`; outbound `DiagnosticsStore`), Push Provider (port `PushProvider`; outbound `Fcm::*`), Admin Diagnostics (admin JSON API, Ember page, `ProblemCheck::MobilePushConfiguration`), Settings (configuration edge).
+- **Components and layers**: Device Registry (core + persistence: `Device`, `DeviceRegistry`), Device API (inbound HTTP: `/mobile-push/v1/devices`), Notification Dispatch (inbound `NotificationListener`, `AlertMapper`, `Jobs::DiscourseMobilePush::DeliverToDevice`; core `PayloadBuilder`, `DeliveryService`; persistence port `DiagnosticsStore`), Push Provider (port `PushProvider`; outbound `Fcm::*`), Admin Diagnostics (admin JSON API, Ember page, `ProblemCheck::MobilePushConfiguration`), Settings (configuration edge).
 - **Key contracts**: `PushProvider#deliver(message:, token:) -> DeliveryResult` with neutral outcomes; `DeviceRegistry#register/unregister/invalidate`; `PayloadBuilder#build(alert:, locale:)`; `DeliveryService#deliver(message:, device:)`; versioned mobile API and push `data` contract (identifiers + absolute `url`).
 - **Architectural constraints**: Firebase specifics only in `fcm/`; Discourse alert keys only in `AlertMapper`; settings only via `Settings`; delivery only in jobs (bounded admin test send excepted); devices deleted only on `invalid_device`; no new gems.
 - **Domain model**: single `Device` aggregate (token unique site-wide, one owner, per-user cap); immutable `Alert`, `PushMessage`, `DeliveryResult` value objects; no domain events.
