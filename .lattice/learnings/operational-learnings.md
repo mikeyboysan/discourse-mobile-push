@@ -18,11 +18,17 @@ Experiential patterns from practice. Complements standards (what should be) with
 - 2026-10-01 [implementation] Discourse core flushes Redis after every example (`spec/rails_helper.rb`); `use_redis_snapshotting` is a deprecated no-op, so specs using `RateLimiter.enable` or Redis caches need no extra isolation. Verify such review claims against the core test harness before acting on them.
 - 2026-10-01 [implementation] Discourse's Zeitwerk inflector overrides match whole file basenames only (`http.rb` -> `HTTP`, but `http_client.rb` -> `HttpClient`); check `config/initializers/000-zeitwerk.rb` before naming plugin files with acronyms.
 - 2026-10-01 [implementation] Ruby 3.4 ships `base64` as a bundled (not default) gem — encode base64url with `[bytes].pack("m0").tr("+/", "-_").delete("=")` instead of relying on `require "base64"`.
+- 2026-10-01 [implementation] Discourse push titles — `discourse_push_notifications.popup.*` is missing for many notification types and plugins define some as nested hashes (chat's `chat_mention`); guard with `I18n.exists?` and a `String` check, falling back to a generic title.
+- 2026-10-01 [implementation] Discourse `fab!` refinds its record on first access — a record deleted during the example and then referenced raises `RecordNotFound`; use `let!` for records the test deletes (recurred in slice 3).
+- 2026-10-01 [implementation] Ruby helpers mixing an optional positional hash with keyword options — `helper(key: v)` binds to keywords and raises "unknown keyword"; take `**overrides` alongside the keyword options instead.
+- 2026-10-01 [implementation] rubocop-discourse flags `Time.zone.now + 60.seconds` (`Rails/DurationArithmetic`); write `60.seconds.from_now`.
 - 2026-10-01 [implementation] FCM HTTP v1 `android.priority` — send lowercase `"high"`/`"normal"` as in Firebase's examples, despite the REST reference listing enum names `HIGH`/`NORMAL`.
 
 ## Quality Signals
 <!-- Recurring quality issues that keep appearing despite rules -->
 - 2026-10-01 [review] Auth and API-key scope tests written only for the first endpoint — cover authentication and scope on every endpoint, especially logout/unregister paths that apps depend on.
+- 2026-10-01 [review] A slice that ships a contract external clients consume (e.g. the push `data` payload) must update its reference doc and changelog in the same slice — don't defer to a later docs slice.
+- 2026-10-01 [review] Jobs that re-load records by id — test the "record gone" path for every record loaded (user and device), not only the main one.
 - 2026-10-01 [review] Error paths keep slipping through (second review in a row) — parsers of untrusted or admin-supplied input need a spec for every explicit raise/rescue branch, not just the common failures.
 
 ## Reliability

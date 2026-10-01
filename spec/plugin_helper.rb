@@ -53,4 +53,21 @@ module MobilePushSpecHelpers
   end
 end
 
+class MobilePushFakeProvider < DiscourseMobilePush::PushProvider
+  attr_reader :deliveries
+
+  def initialize(outcome: :delivered, detail: nil, retry_after: nil, configured: true)
+    @result = DiscourseMobilePush::DeliveryResult.new(outcome:, detail:, retry_after:)
+    @configured = configured
+    @deliveries = []
+  end
+
+  def configured? = @configured
+
+  def deliver(message:, token:)
+    @deliveries << { message:, token: }
+    @result
+  end
+end
+
 RSpec.configure { |config| config.include MobilePushSpecHelpers }

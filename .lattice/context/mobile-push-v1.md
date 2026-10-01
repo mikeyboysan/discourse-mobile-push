@@ -63,7 +63,19 @@ status: approved
 | 2026-10-01 | [Review slice 2] `SENDER_ID_MISMATCH` stays `config_error` (never deletes devices); slice 4's problem check must require configuration errors across more than one device, so a single stray token (e.g. a debug build registered against production) cannot keep the dashboard in alarm | The code is ambiguous between "whole project misconfigured" and "one foreign token"; deletion on a config-wide error would wipe all devices | Classify `SENDER_ID_MISMATCH` as `invalid_device` |
 | 2026-10-01 | [Review slice 2] No distributed lock around access-token refresh | Concurrent jobs at expiry each fetch one grant; harmless at Google's limits and avoids lock contention in the delivery path | `DistributedMutex` around fetch |
 | 2026-10-01 | [Impl slice 2] Slice 2 complete (PushMessage, DeliveryResult, PushProvider port, FCM adapter, provider wiring in `plugin.rb`); 148 specs green | -- | -- |
-
+| 2026-10-01 | [Impl slice 3] `Alert` gains `group_name` (additive contract change) | Core's `discourse_push_notifications.popup.*` titles are interpolated with `group_name`; omitting it risks `MissingInterpolationArgument` in locales that use it | Leave it out (English strings don't use it) |
+| 2026-10-01 | [Impl slice 3] `DiagnosticsStore` implemented in slice 3 (contract unchanged); admin API and problem check stay in slice 4 | `DeliveryService` records every outcome through it, so slice 3 cannot be end-to-end without it | Stub diagnostics until slice 4 |
+| 2026-10-01 | [Impl slice 3] Listener enqueues `AlertMapper.relevant_fields(payload)` (string keys, mapper fields only) instead of the raw Discourse payload | Data minimisation in Sidekiq/Redis and guaranteed JSON-safe job args (chat payloads carry reply actions) | Enqueue the raw payload |
+| 2026-10-01 | [Impl slice 3] Titles: `translated_title`, else core popup translation for the type (`watching_category_or_tag` mapped to `watching_first_post`/`posted` as core does), else the site title; nested (non-string) translations ignored. Body: excerpt, else plugin string "You have a new notification". Generic mode: site title + that string. Unknown type ids are named `"unknown"` | Mirrors `PushNotificationPusher.title`; proposal s37 "send a generic notification" for types without a mobile representation; chat defines `popup.chat_mention` as a nested hash | Skip unknown types; plugin-owned titles |
+| 2026-10-01 | [Impl slice 3] Title truncated to 150 chars, body to 500 chars | Worst case ~2.6 KB of UTF-8 text, leaving room for data under FCM's 4 KB limit | Byte-based truncation |
+| 2026-10-01 | [Impl slice 3] `AlertMapper` resolves `post_url` with `URI.join(base_url, url)` and keeps it only when scheme is http(s) and host and port match the site; otherwise the payload builder falls back to `base_url` | Handles subfolder installs (relative URLs already include the base path) and rejects protocol-relative, foreign-host and `javascript:` URLs | Prefix `base_url` by string concatenation |
+| 2026-10-01 | [Impl slice 3] `DeliveryService` records the failure on the device for every non-delivered, non-invalid outcome (including each retryable attempt); the job only logs when it gives up | Keeps the job free of persistence logic; per-attempt failure timestamps are accurate diagnostics | Job records the final failure itself |
+| 2026-10-01 | [Impl slice 3] Job backoff: 30 s x 2^(attempt-1), at least `Retry-After`, capped at 1 h; max 5 attempts; device looked up through `DeviceRegistry#devices_for(user:)` so it must still belong to the alerted user | Matches the Level 3 retry policy; ownership transfer between enqueue and run never sends one user's alert to another user's device | `Device.find_by(id:)` |
+| 2026-10-01 | [Impl slice 3] `PayloadBuilder#build_test` deferred to slice 4 | Its only caller is the admin test send | Implement now without a caller |
+| 2026-10-01 | [Review slice 3] Title policy (including the `watching_category_or_tag` wording rule and core `discourse_push_notifications.popup.*` keys) stays in core `PayloadBuilder` | Wording is payload policy (architecture ambiguity signal); translation keys are catalogue entries, not runtime internals, and the L4 decision already chose core translations | Normalise a title type in `AlertMapper` and add it to `Alert` |
+| 2026-10-01 | [Review slice 3] Push payload documented in `docs/mobile-api.md` and `CHANGELOG.md` in this slice rather than slice 6 | The data contract is consumed by apps as soon as delivery ships | Defer to the docs slice |
+| 2026-10-01 | [Review slice 3] `NotificationListener` calls `provider.configured?` (parses credentials) per alert, without caching | ~1 ms in Sidekiq per alert for users with devices; caching would need invalidation on setting changes | Memoise parsed credentials keyed by the setting value |
+| 2026-10-01 | [Impl slice 3] Slice 3 complete (Alert, AlertMapper, NotificationListener, PayloadBuilder, DiagnosticsStore, DeliveryService, DeliverToDevice job, `:push_notification` wiring) - first end-to-end milestone; 215 specs green | -- | -- |
 ## Open Questions
 
 None.
@@ -340,7 +352,7 @@ Device JSON: {id, platform, app_id, app_version, device_identifier, token_finger
 | Path | Role |
 |---|---|
 | `docs/proposal.md` | Source proposal (requirement doc) |
-| `plugin.rb` | Composition root: metadata, enabled setting, provider wiring, token log filter, User API key scope, anonymisation listener |
+| `plugin.rb` | Composition root: metadata, enabled setting, provider wiring, token log filter, User API key scope, `:push_notification` and anonymisation listeners |
 | `lib/discourse_mobile_push/push_message.rb` | Core value object: provider-neutral message (string data, priority) |
 | `lib/discourse_mobile_push/delivery_result.rb` | Core value object: neutral delivery outcome |
 | `lib/discourse_mobile_push/push_provider.rb` | Port: `configured?`, `deliver(message:, token:)` |
@@ -349,7 +361,14 @@ Device JSON: {id, platform, app_id, app_version, device_identifier, token_finger
 | `lib/discourse_mobile_push/fcm/access_token_source.rb` | OpenSSL RS256 JWT grant and Redis-cached access token |
 | `lib/discourse_mobile_push/fcm/error_classifier.rb` | FCM response to neutral outcome mapping |
 | `lib/discourse_mobile_push/fcm/http_client.rb` | `Net::HTTP` wrapper with timeouts and network-error mapping |
-| `spec/plugin_helper.rb` | Spec helpers: test RSA key, service-account JSON, FCM stubs |
+| `spec/plugin_helper.rb` | Spec helpers: test RSA key, service-account JSON, FCM stubs, fake `PushProvider` |
+| `lib/discourse_mobile_push/alert.rb` | Core value object: provider-neutral view of a Discourse alert |
+| `lib/discourse_mobile_push/alert_mapper.rb` | Inbound adapter: the only reader of Discourse alert payload keys; same-site URL resolution |
+| `lib/discourse_mobile_push/notification_listener.rb` | Inbound adapter: `:push_notification` gate (enabled, devices, push filters, provider configured) and per-device enqueue |
+| `lib/discourse_mobile_push/payload_builder.rb` | Core: privacy mode, titles, truncation, data contract, priority |
+| `lib/discourse_mobile_push/delivery_service.rb` | Core: send via the port and apply the outcome to the device and diagnostics |
+| `lib/discourse_mobile_push/diagnostics_store.rb` | Persistence port: per-site Redis delivery summary |
+| `app/jobs/regular/discourse_mobile_push/deliver_to_device.rb` | Inbound async: per-device delivery with quiet re-enqueue backoff |
 | `config/settings.yml` | `mobile_push_*` site settings |
 | `lib/discourse_mobile_push/settings.rb` | Configuration edge (sole reader of site settings) |
 | `lib/discourse_mobile_push/device_registry.rb` | Core: device registration, listing, removal, invalidation |

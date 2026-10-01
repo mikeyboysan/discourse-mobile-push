@@ -34,6 +34,10 @@ after_initialize do
     ],
   )
 
+  on(:push_notification) do |user, payload|
+    DiscourseMobilePush::NotificationListener.call(user, payload)
+  end
+
   # Registered directly (not via `on`) so anonymised users lose their push tokens
   # even while the plugin is disabled.
   # rubocop:disable Discourse/Plugins/UsePluginInstanceOn

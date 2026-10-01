@@ -96,4 +96,46 @@ Error responses use Discourse's standard shape:
 
 ## Push payload
 
-The push `data` payload delivered to devices is documented here once notification delivery ships.
+Each Discourse push notification arrives as an FCM message with a `notification` (title and body) and a `data` map. All `data` values are strings.
+
+| Key | Always present | Value |
+|---|---|---|
+| `type` | yes | `notification` |
+| `notification_type` | yes | Discourse notification type name, e.g. `replied`, `mentioned`, `private_message`, `chat_mention`; `unknown` for types Discourse does not name |
+| `notification_type_id` | when known | Discourse's numeric notification type, as a string |
+| `url` | yes | Absolute URL of the content to open, always on the forum's own host. Falls back to the forum's base URL when the notification has no link |
+| `topic_id` | for post notifications | Topic ID |
+| `post_number` | for post notifications | Post number within the topic |
+| `post_id` | for post notifications | Post ID |
+| `channel_id` | for chat notifications | Chat channel ID |
+
+`data` never contains post or message text. Fetch content from Discourse when the user opens the notification.
+
+```json
+{
+  "notification": {
+    "title": "jane replied to you in \"Welcome\" - Example Forum",
+    "body": "Thanks, that worked!"
+  },
+  "data": {
+    "type": "notification",
+    "notification_type": "replied",
+    "notification_type_id": "2",
+    "url": "https://forum.example.com/t/welcome/10/2",
+    "topic_id": "10",
+    "post_number": "2",
+    "post_id": "20"
+  }
+}
+```
+
+**Title and body** depend on the `mobile_push_privacy_mode` site setting:
+
+- `full`: the same title Discourse uses for browser push notifications, and the post or message excerpt as the body.
+- `generic`: the site title, and "You have a new notification" (translated into the user's locale) as the body.
+
+Titles are truncated to 150 characters and bodies to 500.
+
+**Priority**: notification types listed in `mobile_push_high_priority_notification_types` (by default `private_message`, `mentioned` and `chat_mention`) are sent with Android `high` priority; everything else uses `normal`.
+
+**Delivery**: Discourse's own rules decide who is notified, including do-not-disturb and push notification filters from other plugins. Temporary Firebase failures are retried with backoff. A device whose token Firebase reports as unregistered or invalid is removed; the app re-registers it on its next start.

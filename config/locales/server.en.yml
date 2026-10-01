@@ -8,3 +8,6 @@ en:
     mobile_push_max_devices_per_user: "Maximum devices per user. Registering beyond this removes the least recently seen device."
     mobile_push_allowed_app_ids: "App IDs (for example com.example.app) allowed to register devices. Leave empty to allow any app."
     mobile_push_stale_device_days: "Devices not seen for this many days are reported as stale in diagnostics."
+  discourse_mobile_push:
+    notification:
+      generic_body: "You have a new notification"
