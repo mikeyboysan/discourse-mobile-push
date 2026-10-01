@@ -15,6 +15,10 @@ Discourse::Application.routes.draw do
   scope "/admin/mobile-push", constraints: AdminConstraint.new, defaults: { format: :json } do
     get "/status" => "discourse_mobile_push/admin/status#show"
     get "/devices" => "discourse_mobile_push/admin/devices#index"
+    delete "/devices/:id" => "discourse_mobile_push/admin/devices#destroy",
+           :constraints => {
+             id: /\d+/,
+           }
     post "/devices/:id/test" => "discourse_mobile_push/admin/devices#send_test",
          :constraints => {
            id: /\d+/,

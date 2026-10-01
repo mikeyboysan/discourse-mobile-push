@@ -51,6 +51,8 @@ en:
           stale: "stale"
           send_test: "Send test"
           confirm_test: "Send a test notification to this device of %{username}? It will appear on their phone."
+          remove: "Remove"
+          confirm_remove: "Remove this device of %{username}? It stops receiving push notifications until their app registers again."
           outcome:
             delivered: "Test notification delivered"
             invalid_device: "Token no longer valid; the device was removed"
@@ -65,3 +67,4 @@ en:
         staff_actions:
           actions:
             mobile_push_test_send: "Send mobile push test"
+            mobile_push_device_removed: "Remove mobile push device"

@@ -152,6 +152,41 @@ RSpec.describe DiscourseMobilePush::Admin::DevicesController do
     end
   end
 
+  describe "DELETE /admin/mobile-push/devices/:id.json" do
+    let!(:device) { Fabricate(:mobile_push_device, user:) }
+
+    def perform_request(id: device.id) = delete "/admin/mobile-push/devices/#{id}.json"
+
+    include_examples "a mobile push admin-only endpoint"
+
+    context "as an admin" do
+      before { sign_in(admin) }
+
+      it "removes the device" do
+        perform_request
+
+        expect(response.status).to eq(204)
+        expect(DiscourseMobilePush::Device.exists?(device.id)).to eq(false)
+      end
+
+      it "records the removal in the staff action log without the token" do
+        perform_request
+
+        log = UserHistory.where(custom_type: "mobile_push_device_removed").sole
+        expect(log.acting_user_id).to eq(admin.id)
+        expect(log.details).to include(user.username, device.token_fingerprint)
+        expect(log.details).not_to include(device.token)
+      end
+
+      it "is not found for an unknown device" do
+        perform_request(id: device.id + 1000)
+
+        expect(response.status).to eq(404)
+        expect(DiscourseMobilePush::Device.exists?(device.id)).to eq(true)
+      end
+    end
+  end
+
   describe "test send through Firebase" do
     let!(:device) { Fabricate(:mobile_push_device, user:) }
 

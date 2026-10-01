@@ -2,7 +2,16 @@
 
 module DiscourseMobilePush
   class DeviceRegistry
-    Registration = Data.define(:platform, :app_id, :token, :app_version, :device_identifier)
+    Registration =
+      Data.define(
+        :platform,
+        :app_id,
+        :token,
+        :app_version,
+        :device_identifier,
+        :user_api_key_id,
+        :user_auth_token_id,
+      ) { def initialize(user_api_key_id: nil, user_auth_token_id: nil, **) = super }
     Result = Data.define(:device, :created)
     Counts = Data.define(:total, :stale, :by_platform, :by_app_version)
     AppVersionCount = Data.define(:app_id, :app_version, :count)
@@ -20,7 +29,7 @@ module DiscourseMobilePush
       write_registration(user, registration)
     end
 
-    def devices_for(user:) = Device.where(user:).order(last_seen_at: :desc, id: :desc)
+    def devices_for(user:) = most_recent_first(Device.where(user:).with_live_credential)
 
     def unregister_by_id(user:, device_id:) = Device.where(user:, id: device_id).delete_all > 0
 
@@ -28,7 +37,11 @@ module DiscourseMobilePush
 
     def remove_all_for(user:) = Device.where(user:).delete_all
 
-    def invalidate(device:) = Device.where(id: device.id).delete_all
+    def remove(device:) = Device.where(id: device.id).delete_all > 0
+
+    def remove_signed_out = Device.where.not(id: Device.with_live_credential.select(:id)).delete_all
+
+    def invalidate(device:) = remove(device:)
 
     def find(device_id:) = Device.includes(:user).find_by(id: device_id)
 
@@ -46,16 +59,13 @@ module DiscourseMobilePush
     def search(owners: nil, page: 0)
       scope = owners ? Device.where(user: owners) : Device.all
       devices =
-        scope
-          .includes(:user)
-          .order(last_seen_at: :desc, id: :desc)
-          .offset(page * PAGE_SIZE)
-          .limit(PAGE_SIZE)
-          .to_a
+        most_recent_first(scope).includes(:user).offset(page * PAGE_SIZE).limit(PAGE_SIZE).to_a
       Page.new(devices:, total_rows: scope.count, page:)
     end
 
     private
+
+    def most_recent_first(scope) = scope.order(last_seen_at: :desc, id: :desc)
 
     def app_version_counts
       Device
@@ -114,7 +124,8 @@ module DiscourseMobilePush
     end
 
     def evict_beyond_cap(user)
-      surplus_ids = devices_for(user:).offset(@settings.max_devices_per_user).pluck(:id)
+      surplus_ids =
+        most_recent_first(Device.where(user:)).offset(@settings.max_devices_per_user).pluck(:id)
       Device.where(id: surplus_ids).delete_all if surplus_ids.any?
     end
   end

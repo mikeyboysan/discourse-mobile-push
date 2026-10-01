@@ -26,6 +26,16 @@ Every endpoint acts on the signed-in user's own devices. Device ownership always
 
 Unauthenticated requests get `403`. When the plugin is disabled every endpoint returns `404`.
 
+### How long a registration lasts
+
+A device is tied to the credential of its latest registration:
+
+- **User API key**: the device stops receiving notifications when the key is revoked (for example from the user's Apps preferences) or expires.
+- **Session cookie**: the device stops receiving notifications when the session ends: logout, logging out of all devices, a password change, or session expiry.
+- **Admin API key**: the device isn't tied to a credential.
+
+A stopped device no longer appears in [List devices](#list-devices) and is deleted within a day. Registering again (as apps do on every start) ties the device to the credential used for that request. An administrator can also remove any device from the admin diagnostics.
+
 ## Register a device
 
 `POST /mobile-push/v1/devices`
@@ -113,7 +123,7 @@ Each Discourse push notification arrives as an FCM message with a `notification`
 | `type` | yes | `notification`, or `test` for an administrator's test notification (see below) |
 | `notification_type` | for `notification` | Discourse notification type name, e.g. `replied`, `mentioned`, `private_message`, `chat_mention`; `unknown` for types Discourse does not name |
 | `notification_type_id` | when known | Discourse's numeric notification type, as a string |
-| `url` | yes | Absolute URL of the content to open, always on the forum's own host. Falls back to the forum's base URL when the notification has no link |
+| `url` | yes | Absolute URL of the content to open, always on the forum's own host. Falls back to the forum's base URL when the notification has no link. In `generic` privacy mode it carries no topic or channel names (see below) |
 | `topic_id` | for post notifications | Topic ID |
 | `post_number` | for post notifications | Post number within the topic |
 | `post_id` | for post notifications | Post ID |
@@ -146,10 +156,12 @@ Each Discourse push notification arrives as an FCM message with a `notification`
 
 Titles are truncated to 150 characters and bodies to 500.
 
+**URL in `generic` mode**: topic and channel slugs contain titles, so `generic` mode leaves them out. Post notifications link to `/t/<topic_id>/<post_number>` (or `/t/<topic_id>`), chat notifications to `/chat/c/-/<channel_id>/...`, and anything else to the forum's base URL. Discourse redirects these links to the full URL when they're opened.
+
 **Priority**: notification types listed in `mobile_push_high_priority_notification_types` (by default `private_message`, `mentioned` and `chat_mention`) are sent with Android `high` priority; everything else uses `normal`.
 
 **iOS**: devices registered with `platform: "ios"` receive the same message through Firebase's APNs integration (the Firebase project needs an APNs key). v1 sets no APNs-specific options, so the priority setting applies to Android only.
 
 **Test notifications**: an administrator can send a test notification to a device from the admin diagnostics. Its `data` contains only `type` (`test`) and `url` (the forum's base URL); it is sent with `high` priority and the same text in every privacy mode. Apps should open the forum's home page, or simply show it.
 
-**Delivery**: Discourse's own rules decide who is notified, including do-not-disturb and push notification filters from other plugins. Pushes are sent straight away, even while the user is active on the website (Discourse's `push_notification_time_window_mins` delay applies only to browser push). Temporary Firebase failures are retried with backoff. A device whose token Firebase reports as unregistered or invalid is removed; the app re-registers it on its next start.
+**Delivery**: Discourse's own rules decide who is notified, including do-not-disturb and push notification filters from other plugins. Pushes are sent straight away, even while the user is active on the website (Discourse's `push_notification_time_window_mins` delay applies only to browser push). Temporary Firebase failures are retried with backoff. A device whose token Firebase reports as unregistered or invalid is removed; the app re-registers it on its next start. Devices whose credential was revoked or ended get nothing (see [How long a registration lasts](#how-long-a-registration-lasts)).

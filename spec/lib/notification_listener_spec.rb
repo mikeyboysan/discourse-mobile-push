@@ -80,6 +80,15 @@ RSpec.describe DiscourseMobilePush::NotificationListener do
     end
   end
 
+  it "skips devices whose User API key was revoked" do
+    revoked_key = Fabricate(:user_api_key, user:, revoked_at: 1.minute.ago)
+    Fabricate(:mobile_push_device, user:, user_api_key_id: revoked_key.id)
+
+    listen
+
+    expect(job.jobs).to be_empty
+  end
+
   it "does nothing for a user without devices" do
     listen
 

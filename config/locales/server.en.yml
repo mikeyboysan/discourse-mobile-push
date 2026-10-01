@@ -3,7 +3,7 @@ en:
     mobile_push_enabled: "Enable push notifications to registered mobile app devices."
     mobile_push_firebase_service_account_json: "Firebase service account key (JSON) used to send messages through Firebase Cloud Messaging HTTP v1."
     mobile_push_firebase_project_id: "Firebase project ID. Leave blank to use the project ID from the service account key."
-    mobile_push_privacy_mode: "How much notification text appears on the device. 'full' shows the topic title and excerpt; 'generic' shows only a neutral message."
+    mobile_push_privacy_mode: "What notification content is sent to Firebase (Google) and, for iOS, Apple, and shown on the device. 'full' sends the notification title and post or chat excerpt, including personal messages; 'generic' sends only the site title, a neutral message and links without topic or channel names."
     mobile_push_high_priority_notification_types: "Notification types sent with high priority, which may wake the device immediately."
     mobile_push_max_devices_per_user: "Maximum devices per user. Registering beyond this removes the least recently seen device."
     mobile_push_allowed_app_ids: "App IDs (for example com.example.app) allowed to register devices. Leave empty to allow any app."

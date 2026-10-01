@@ -16,6 +16,16 @@ module DiscourseMobilePush
 
     belongs_to :user
 
+    # Credential columns reference core tables without foreign keys; a device registered with a
+    # User API key or session stops receiving pushes once that credential is revoked or gone.
+    def self.with_live_credential
+      where(user_api_key_id: nil).or(where(user_api_key_id: UserApiKey.active.select(:id))).and(
+        where(user_auth_token_id: nil).or(
+          where(user_auth_token_id: UserAuthToken.unexpired.select(:id)),
+        ),
+      )
+    end
+
     validates :platform, inclusion: { in: PLATFORMS }
     validates :app_id, format: { with: APP_ID_FORMAT }
     validates :token,
@@ -62,6 +72,8 @@ end
 #  created_at          :datetime         not null
 #  updated_at          :datetime         not null
 #  app_id              :string           not null
+#  user_api_key_id     :bigint
+#  user_auth_token_id  :bigint
 #  user_id             :integer          not null
 #
 # Indexes

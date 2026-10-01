@@ -18,7 +18,7 @@ status: complete
 | 2026-10-01 | [Entry] Start at Level 1 (Capabilities), with a deep Level 3 for the Firebase integration | New third-party integration spanning several components (design-first calibration) | Start at Level 2 treating the proposal as agreed capabilities |
 | 2026-10-01 | Blueprint covers full v1.0 scope (proposal section 43), implemented as vertical slices starting with the section 44 milestone | Avoids redesign between milestone and v1.0 while keeping delivery incremental | Blueprint only the first milestone |
 | 2026-10-01 | [Level 1] Approved five capabilities: register devices, receive pushes, open content, self-healing delivery, admin configuration and diagnostics (incl. device browser and test send) | Matches proposal section 43; test send is the main diagnostic path | Simpler admin capability limited to dashboard problem check and logs |
-| 2026-10-01 | [Level 1] No legacy `discourse-fcm-notifications` compatibility endpoint; Tziburia migrates to `POST /mobile-push/v1/devices` | Keeps the plugin generic; avoids a state-changing GET that bypasses CSRF; the app needs an update anyway to send app_id/version | Compatibility endpoint mimicking `GET /fcm_notifications/automatic_subscribe` |
+| 2026-10-01 | [Level 1] No legacy `discourse-fcm-notifications` compatibility endpoint; the example consumer app migrates to `POST /mobile-push/v1/devices` | Keeps the plugin generic; avoids a state-changing GET that bypasses CSRF; the app needs an update anyway to send app_id/version | Compatibility endpoint mimicking `GET /fcm_notifications/automatic_subscribe` |
 | 2026-10-01 | [Level 1] Out of scope for v1.0: per-user push preferences, iOS-specific behaviour, collapsing, automatic stale-device cleanup (last-seen recorded only), multiple providers/projects, topic subscriptions | Proposal section 43 "later versions"; establish reliable delivery first | Include some of these in v1.0 |
 | 2026-10-01 | [Level 2] Five components plus a Settings edge: Device Registry, Device API, Notification Dispatch, Push Provider (FCM adapter), Admin Diagnostics | Each has a confirmed need and >1 caller; maps 1:1 onto the hexagonal layers | Merge Device API into Device Registry (rejected: fat controller, admin test send needs registry without HTTP); fold Settings into FCM adapter (rejected: PayloadBuilder also needs settings) |
 | 2026-10-01 | [Level 2] Diagnostics stored as per-device columns (last delivered, last failure, failure reason) plus a per-site summary in Redis (last success, last failure, last config error, invalidated count); no delivery history table | Answers every proposal section 18 question cheaply; proposal 47.6 favours lightweight logging | Dedicated `mobile_push_deliveries` history table (write per push, retention job, beyond v1.0) |
@@ -32,7 +32,7 @@ status: complete
 | 2026-10-01 | [Level 4] Discourse alert payload keys are read only by `AlertMapper` (inbound adapter), producing a core `Alert` value object; `PayloadBuilder` works on `Alert` | Keeps PostAlerter/chat payload coupling in one adapter (architecture ambiguity signal resolved) | PayloadBuilder reading the raw payload hash |
 | 2026-10-01 | [Level 4] Request field and column named `token` (not `fcm_token` / `registration_token`) | Provider-neutral naming per proposal section 17 | Proposal's `fcm_token` / `registration_token` |
 | 2026-10-01 | [Level 4] Push `data` carries identifiers and an absolute `url` only, never post text; privacy mode affects title/body only. Full-mode titles reuse core `discourse_push_notifications.popup.*` translations | No text leaks via data; consistent, already-translated wording across locales | Plugin-owned title strings; including excerpt/username in data |
-| 2026-10-01 | [Level 4] Mobile auth resolved: any standard Discourse auth via `ensure_logged_in` (session cookie + CSRF, User API keys, admin API keys), plus a `discourse-mobile-push:devices` User API key scope covering the device endpoints | Works for WebView apps (Tziburia) and native apps with narrowly scoped keys | Session only; no plugin-specific scope |
+| 2026-10-01 | [Level 4] Mobile auth resolved: any standard Discourse auth via `ensure_logged_in` (session cookie + CSRF, User API keys, admin API keys), plus a `discourse-mobile-push:devices` User API key scope covering the device endpoints | Works for WebView apps (the example consumer) and native apps with narrowly scoped keys | Session only; no plugin-specific scope |
 | 2026-10-01 | [Level 4] Admin JSON endpoints live under `/admin/mobile-push/...` (separate from the Ember page path `/admin/plugins/discourse-mobile-push/...`) | Avoids route clashes with the admin plugin page | JSON under `/admin/plugins/discourse-mobile-push/...` |
 | 2026-10-01 | Requirement drift vs proposal: `fcm_token`/`registration_token` -> `token`; settings renamed to `mobile_push_*`, project id optional, added max devices / allowed app ids / high-priority types; added `DELETE /devices {token}`; invalid tokens always deleted. Not written to the proposal (user choice) | Provider neutrality (s17), Discourse conventions, validation, priority policy (s26), logout (s37), data minimisation (s22) | Record overrides in the proposal document |
 | 2026-10-01 | Design approved at Level 4. Status set to approved -- ready for implementation. | All four levels approved and persisted; traceability verified | -- |
@@ -104,6 +104,10 @@ status: complete
 | 2026-10-01 | [Impl slice 6] README recommends a dedicated service account with only the Firebase Cloud Messaging API Admin role | Least privilege (proposal 8.4); the Firebase console's generated key carries far broader permissions | Document only the console key |
 | 2026-10-01 | [Impl slice 6] `docs/mobile-api.md` states the v1 forward-compatibility rule: new optional fields, `data` keys and `data.type` values may appear; apps ignore unknown ones | Lets v1 grow without breaking shipped apps, matching the review dimension "new optional fields are documented" | Leave it implicit |
 | 2026-10-01 | [Review slice 6] Documented that mobile pushes are sent immediately, unlike core browser push, which waits `push_notification_time_window_mins` for recently seen users; honouring that window is a candidate for a later version | Admins expect parity with browser push; the listener enqueues without delay | Implement the delay in 1.0 |
+| 2026-10-01 | [1.1.0, platform review] Each device records the credential of its latest registration (`user_api_key_id`, `user_auth_token_id`, no foreign keys); `DeviceRegistry#devices_for` returns only devices whose credential is still live (`UserApiKey.active`, `UserAuthToken.unexpired`), so listener, job and the user API skip signed-out devices; a daily `RemoveSignedOutDevices` job deletes them | Review finding: revoking a key or logging out left pushes flowing; filtering at query time also covers core paths that delete tokens without events (log out everywhere, password change, expiry) and un-revocation | Hooks on `:user_logged_out` (misses bulk deletes); FKs with cascade to core auth tables (couples to core migrations, can't express `revoked_at`) |
+| 2026-10-01 | [1.1.0, platform review] Admin removal (`DELETE /admin/mobile-push/devices/:id`, staff-logged); the admin list reloads from page 0 after a removal | Review finding: no server-side way to stop a device; reloading avoids the offset-paging skip | User-facing device list in preferences (core's Apps preferences and logout already cover self-service) |
+| 2026-10-01 | [1.1.0, platform review] `generic` mode builds slug-free URLs from IDs (`/t/<topic_id>/<post_number>`, chat `/chat/c/-/...`, otherwise the base URL) | Review finding: slugs leaked titles to Google and Apple | Document the leak only |
+| 2026-10-01 | [1.1.0, platform review] Dev-only paths are `export-ignore`d; the local path and client name were removed from tracked docs | Review findings on hygiene and third-party content; `git clone` installs still contain tracked dev files | Untrack `.agents` / `.lattice` |
 ## Open Questions
 
 None.
@@ -116,7 +120,7 @@ None.
 - Device ownership always comes from the authenticated Discourse user, never from a client-supplied `user_id`.
 - FCM tokens are secrets: never logged or displayed in full (fingerprints only).
 - Mobile API is versioned in the path (`/mobile-push/v1/...`).
-- Push `data` values are strings and include an absolute `url` (required by the example consumer, Tziburia).
+- Push `data` values are strings and include an absolute `url` (required by the example consumer app).
 - Devices are deleted only on a device-specific signal (`invalid_device`); configuration or message errors never delete devices.
 - Delivery never happens inside a normal web request; the only synchronous send is the bounded admin test send.
 
@@ -272,17 +276,21 @@ class Device < ActiveRecord::Base # table mobile_push_devices
   def record_failure!(reason:, at:) -> void
 end
 # columns: user_id (FK users ON DELETE CASCADE), platform, app_id, device_identifier?, token (unique), app_version?,
-#   last_seen_at, last_delivered_at?, last_failure_at?, last_failure_reason?, timestamps
+#   last_seen_at, last_delivered_at?, last_failure_at?, last_failure_reason?, timestamps,
+#   user_api_key_id?, user_auth_token_id? (1.1.0; no FKs; Device.with_live_credential)
 # indexes: unique(token); unique(user_id, app_id, device_identifier) WHERE device_identifier IS NOT NULL; (user_id, last_seen_at)
 
 class DeviceRegistry
-  Registration = Data.define(:platform, :app_id, :token, :app_version, :device_identifier)
+  Registration = Data.define(:platform, :app_id, :token, :app_version, :device_identifier,
+                             :user_api_key_id, :user_auth_token_id) # credential ids default to nil
   Result = Data.define(:device, :created)
   def initialize(settings: DiscourseMobilePush.settings)
   def register(user:, registration:) -> Result   # one transaction; resolves key collisions; retries RecordNotUnique once; raises ActiveRecord::RecordInvalid
   def unregister_by_id(user:, device_id:) -> Boolean
   def unregister_by_token(user:, token:) -> Boolean
   def remove_all_for(user:) -> void              # used on :user_anonymized
+  def remove(device:) -> Boolean                 # 1.1.0, admin removal
+  def remove_signed_out -> Integer               # 1.1.0, daily job
   def invalidate(device:) -> void
 end
 ```

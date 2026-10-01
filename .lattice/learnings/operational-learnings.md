@@ -38,6 +38,8 @@ Experiential patterns from practice. Complements standards (what should be) with
 - 2026-10-01 [implementation] Before planning GitHub-side release steps (tags, releases, repo settings), check `gh auth status` and `gh api repos/<owner>/<repo> --jq .permissions` — git push and `gh` can be signed in as different accounts.
 - 2026-10-01 [implementation] Discourse plugin metadata — core parses `meta_topic_id` with `Integer()`, so a placeholder is silently dropped (remove it until a topic exists); a comment-only `.discourse-compatibility` parses as empty and is safe to ship.
 - 2026-10-01 [implementation] Deleting a key from a locale YAML — check the surrounding lines; a lost newline breaks parsing and only the i18n lint step catches it.
+- 2026-10-01 [review] Rails 8.1 `rails runner` scripts — calling `exit` inside the script crashes the executor's error reporter (`undefined method 'merge' for nil`) and turns the exit status to 1; flush stdout and use `exit!` for a scripted exit code.
+- 2026-10-01 [review] Discourse runs with `prepared_statements: false`, so SQL values are inlined into DEBUG-level SQL log lines; `filter_parameters` hides request params but not secrets in those lines (production defaults to INFO, which doesn't log SQL).
 
 ## Quality Signals
 <!-- Recurring quality issues that keep appearing despite rules -->
@@ -56,3 +58,4 @@ Experiential patterns from practice. Complements standards (what should be) with
 
 ## Structural Health
 <!-- Architectural drift, debt accumulation, coupling issues, migration lessons -->
+- 2026-10-01 [review] Discourse installs plugins by `git clone`, so everything tracked ships to every site — keep dev-only material (agent skills, process docs, local paths, client names) untracked or out of the plugin repo, and list the tag's tree before tagging; `export-ignore` only trims archives.

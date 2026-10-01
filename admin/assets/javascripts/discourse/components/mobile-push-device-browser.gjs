@@ -79,6 +79,12 @@ export default class MobilePushDeviceBrowser extends Component {
     this.loadPage(this.page + 1);
   }
 
+  // Offset paging would skip a device on the next page after a removal, so start over.
+  @action
+  deviceRemoved() {
+    this.loadPage(0);
+  }
+
   <template>
     <AdminConfigAreaCard
       class="mobile-push-devices"
@@ -132,7 +138,10 @@ export default class MobilePushDeviceBrowser extends Component {
             </thead>
             <tbody class="d-table__body">
               {{#each this.devices key="id" as |device|}}
-                <MobilePushDeviceRow @device={{device}} />
+                <MobilePushDeviceRow
+                  @device={{device}}
+                  @onRemoved={{this.deviceRemoved}}
+                />
               {{/each}}
             </tbody>
           </table>

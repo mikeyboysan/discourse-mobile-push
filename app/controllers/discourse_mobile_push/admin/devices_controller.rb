@@ -10,6 +10,7 @@ module DiscourseMobilePush
       TEST_SENDS_PER_MINUTE = 10
       TEST_SEND_RATE_LIMIT_KEY = "mobile-push-test-send"
       TEST_SEND_LOG_TYPE = "mobile_push_test_send"
+      REMOVAL_LOG_TYPE = "mobile_push_device_removed"
       PAGE_FORMAT = /\A\d{1,6}\z/
 
       def index
@@ -22,18 +23,26 @@ module DiscourseMobilePush
       end
 
       def send_test
-        device = registry.find(device_id: params.require(:id))
-        raise Discourse::NotFound if device.nil?
-
+        device = find_device!
         rate_limit_test_send!
         result = deliver_test(device)
-        log_test_send(device, result)
+        log_device_action(TEST_SEND_LOG_TYPE, device, outcome: result.outcome)
         render json: { outcome: result.outcome, detail: result.detail }
+      end
+
+      def destroy
+        device = find_device!
+        log_device_action(REMOVAL_LOG_TYPE, device) if registry.remove(device:)
+        head :no_content
       end
 
       private
 
       def registry = DeviceRegistry.new
+
+      def find_device!
+        registry.find(device_id: params.require(:id)) || raise(Discourse::NotFound)
+      end
 
       def owners_param
         username = string_param(:username)
@@ -66,15 +75,15 @@ module DiscourseMobilePush
         )
       end
 
-      def log_test_send(device, result)
+      def log_device_action(type, device, **details)
         StaffActionLogger.new(current_user).log_custom(
-          TEST_SEND_LOG_TYPE,
+          type,
           username: device.user.username,
           device_id: device.id,
           platform: device.platform,
           app_id: device.app_id,
           token_fingerprint: device.token_fingerprint,
-          outcome: result.outcome,
+          **details,
         )
       end
     end

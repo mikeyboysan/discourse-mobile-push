@@ -49,6 +49,16 @@ RSpec.describe Jobs::DiscourseMobilePush::DeliverToDevice do
     expect(provider.deliveries).to be_empty
   end
 
+  it "does nothing when the device's session ended after the job was queued" do
+    session = UserAuthToken.generate!(user_id: user.id)
+    device.update!(user_auth_token_id: session.id)
+    session.destroy!
+
+    execute
+
+    expect(provider.deliveries).to be_empty
+  end
+
   it "does nothing when the device no longer exists" do
     device_id = device.id
     device.destroy!

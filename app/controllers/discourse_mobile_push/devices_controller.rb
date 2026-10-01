@@ -70,7 +70,20 @@ module DiscourseMobilePush
         token: string_param(:token, required: true),
         app_version: string_param(:app_version),
         device_identifier: string_param(:device_identifier),
+        user_api_key_id: current_user_api_key_id,
+        user_auth_token_id: current_user_auth_token_id,
       )
+    end
+
+    def current_user_auth_token_id
+      request.env[Auth::DefaultCurrentUserProvider::USER_TOKEN_KEY]&.id
+    end
+
+    def current_user_api_key_id
+      return if !request.env[Auth::DefaultCurrentUserProvider::USER_API_KEY_ENV]
+
+      key = request.env[Auth::DefaultCurrentUserProvider::USER_API_KEY]
+      UserApiKey.active.with_key(key).where(user: current_user).pick(:id) if key.present?
     end
   end
 end

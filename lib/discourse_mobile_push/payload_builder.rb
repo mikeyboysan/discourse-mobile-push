@@ -9,6 +9,7 @@ module DiscourseMobilePush
     TEST_TITLE_TRANSLATION = "discourse_mobile_push.test_notification.title"
     TEST_BODY_TRANSLATION = "discourse_mobile_push.test_notification.body"
     WATCHING_CATEGORY_OR_TAG = "watching_category_or_tag"
+    CHAT_CHANNEL_SLUG = %r{(/chat/c/)[^/]+/}
 
     def initialize(settings: DiscourseMobilePush.settings)
       @settings = settings
@@ -86,12 +87,29 @@ module DiscourseMobilePush
         "type" => "notification",
         "notification_type" => alert.notification_type,
         "notification_type_id" => alert.notification_type_id,
-        "url" => alert.url || @settings.base_url,
+        "url" => url_for(alert),
         "topic_id" => alert.topic_id,
         "post_number" => alert.post_number,
         "post_id" => alert.post_id,
         "channel_id" => alert.channel_id,
       }.compact.transform_values(&:to_s)
+    end
+
+    def url_for(alert)
+      return alert.url || @settings.base_url if !generic?
+
+      slug_free_url(alert)
+    end
+
+    # Slugs carry topic and channel titles, which generic mode keeps off the push services.
+    def slug_free_url(alert)
+      if alert.topic_id.present?
+        "#{@settings.base_url}/t/#{[alert.topic_id, alert.post_number.presence].compact.join("/")}"
+      elsif alert.url&.match?(CHAT_CHANNEL_SLUG)
+        alert.url.sub(CHAT_CHANNEL_SLUG, '\1-/')
+      else
+        @settings.base_url
+      end
     end
 
     def priority_for(alert)

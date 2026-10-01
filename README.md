@@ -8,9 +8,10 @@ The plugin is a delivery channel, not a notification engine. Discourse still dec
 
 - **Device registration API** (`/mobile-push/v1/devices`): your app registers the signed-in user's FCM token, refreshes it when it rotates, and removes it on logout. A user can have several devices.
 - **Delivery** of every Discourse push notification (posts and chat) to the user's devices, in background jobs, with a deep-link `url` and IDs in the payload.
+- **Signing out stops pushes**: a device registered with a User API key stops receiving notifications when the key is revoked or expires, and one registered with a session stops when that session ends (logout, logging out of all devices, a password change). Admins can also remove any device.
 - **Self-healing**: temporary Firebase failures are retried with backoff; devices whose tokens Firebase reports as unregistered or invalid are removed automatically. Configuration errors never delete devices.
-- **Privacy modes**: `full` sends the post excerpt; `generic` sends a neutral message.
-- **Admin diagnostics** (Admin > Plugins > Mobile Push > Diagnostics): Firebase configuration, delivery health, device counts and app versions, a device browser with masked tokens, and a test notification to any device. The admin dashboard warns when credentials are missing or invalid, or when Firebase rejects pushes for several devices because of a configuration problem.
+- **Privacy modes**: `full` sends the notification title and excerpt; `generic` sends a neutral message and links without topic or channel names. See [Data sent to Google and Apple](#data-sent-to-google-and-apple).
+- **Admin diagnostics** (Admin > Plugins > Mobile Push > Diagnostics): Firebase configuration, delivery health, device counts and app versions, a device browser with masked tokens, a test notification to any device, and device removal. The admin dashboard warns when credentials are missing or invalid, or when Firebase rejects pushes for several devices because of a configuration problem.
 
 ## What it doesn't do
 
@@ -29,6 +30,19 @@ The plugin is a delivery channel, not a notification engine. Discourse still dec
 - Outbound HTTPS from the Discourse server to `oauth2.googleapis.com` and `fcm.googleapis.com`.
 
 The plugin adds no gems: it signs its OAuth requests with Ruby's OpenSSL and talks to Firebase over `Net::HTTP`.
+
+## Data sent to Google and Apple
+
+Every push goes through Google's Firebase Cloud Messaging and, for iOS devices, Apple's Push Notification service. What they receive depends on `mobile_push_privacy_mode`:
+
+| | `full` (default) | `generic` |
+|---|---|---|
+| Notification title | The title Discourse uses for browser push, e.g. `jane replied to you in "Topic title" - Site` | The site title |
+| Notification body | The post or chat excerpt, up to 500 characters | "You have a new notification" |
+| `data.url` | The link Discourse gives the notification, including the topic or channel slug | A link without topic or channel names (`/t/<topic_id>/<post_number>`, `/chat/c/-/<channel_id>/...`), or the site URL |
+| IDs and type | Notification type and topic, post or chat channel IDs | The same |
+
+In `full` mode this includes personal messages, posts in restricted categories and private chat channels, sent to Google (and Apple) as notification text. Choose `generic` if that content must not leave your server. Both modes also send the device's push token. The plugin sends nothing else to any third party and has no telemetry.
 
 ## Installation
 
@@ -55,11 +69,27 @@ All settings are under **Admin > Settings**, prefixed `mobile_push_`. The defaul
 | `mobile_push_enabled` | off | Turns the plugin on |
 | `mobile_push_firebase_service_account_json` | empty | Firebase service account key (secret; can be supplied through the environment) |
 | `mobile_push_firebase_project_id` | empty | Optional override for the project ID in the key |
-| `mobile_push_privacy_mode` | `full` | `full` shows the notification title and excerpt; `generic` shows the site title and a neutral message |
-| `mobile_push_high_priority_notification_types` | private messages, mentions, chat mentions | Notification types sent with Android high priority |
+| `mobile_push_privacy_mode` | `full` | `full` sends the notification title and excerpt; `generic` sends the site title, a neutral message and slug-free links (see [Data sent to Google and Apple](#data-sent-to-google-and-apple)) |
+| `mobile_push_high_priority_notification_types` | personal messages, mentions, chat mentions | Notification types sent with Android high priority |
 | `mobile_push_max_devices_per_user` | 10 | Per-user device cap; the least recently seen device is removed when it is exceeded |
 | `mobile_push_allowed_app_ids` | empty | App IDs that may register devices (empty allows any) |
 | `mobile_push_stale_device_days` | 60 | Days without activity before the diagnostics show a device as stale |
+
+## Disabling, removing and backups
+
+**Disabling** (`mobile_push_enabled` off) stops all delivery, and every plugin endpoint returns 404. Registered devices, settings and the diagnostics summary are kept, and delivery resumes when you enable it again. Anonymising a user still deletes their devices while the plugin is disabled.
+
+**Removing the plugin** leaves its data in place: the `mobile_push_devices` table (with push tokens), the `mobile_push_*` site settings and the diagnostics summary in Redis. Reinstalling picks up where it left off. To delete the devices before removing the plugin, roll back its migrations, newest first, from inside the container:
+
+```sh
+cd /var/www/discourse
+LOAD_PLUGINS=1 bin/rake db:migrate:down VERSION=20261001150000
+LOAD_PLUGINS=1 bin/rake db:migrate:down VERSION=20261001100000
+```
+
+The second command drops the table and every registered device. Apps register again on their next start if you reinstall the plugin later.
+
+**Backups** contain the registered push tokens and, unless it is supplied through the environment, the Firebase service account key. A production backup restored onto a staging site with the plugin enabled would send the staging site's notifications to real users' phones. To prevent that, supply the key through `DISCOURSE_MOBILE_PUSH_FIREBASE_SERVICE_ACCOUNT_JSON` in production (backups then carry no credentials), or clear `mobile_push_firebase_service_account_json` on the restored site straight after restoring. Use a separate Firebase project for staging.
 
 ## How it works
 
@@ -96,6 +126,8 @@ Every endpoint acts on the authenticated user's own devices; the server never ac
 
 Register on every app start and whenever the FCM token changes; registration is idempotent. Unregister on logout. Push tokens go in the request body, never in the query string, and responses only ever show a token fingerprint.
 
+A registration lasts as long as the credential that made it: revoking the User API key, or ending the session, stops delivery to that device, and the device is deleted within a day. Registrations made with an admin API key aren't tied to a credential.
+
 Each push carries a `notification` (title and body) and a `data` map with the notification type, an absolute `url` on the forum's own host, and topic, post or chat channel IDs. `data` never contains post text.
 
 The full reference, with request and response examples, matching rules, status codes and the push payload, is in [`docs/mobile-api.md`](docs/mobile-api.md). The API is versioned in its path: breaking changes ship under `/mobile-push/v2`, and v1 keeps working.
@@ -104,7 +136,8 @@ The full reference, with request and response examples, matching rules, status c
 
 - Push tokens are treated as secrets: filtered from request logs, masked in model inspection, never returned by the API or shown in the admin UI (a 12-character fingerprint is used instead), and scrubbed from Firebase error details.
 - The service account key is a secret setting and is never logged.
-- Device registration is rate limited to 20 requests per minute per user (staff are exempt); admin test sends to 10 per minute per admin, and each is recorded in the staff action log.
+- Device registration is rate limited to 20 requests per minute per user (staff are exempt); admin test sends to 10 per minute per admin. Test sends and device removals are recorded in the staff action log.
+- A device stops receiving pushes when the User API key or session it was registered with is revoked, expires or ends.
 - Devices are deleted with their user, and when the user is anonymised.
 
 See [`SECURITY.md`](SECURITY.md) to report a vulnerability.

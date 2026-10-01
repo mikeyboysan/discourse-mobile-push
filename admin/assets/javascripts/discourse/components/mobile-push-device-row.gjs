@@ -8,7 +8,10 @@ import getURL from "discourse/lib/get-url";
 import DButton from "discourse/ui-kit/d-button";
 import dConcatClass from "discourse/ui-kit/helpers/d-concat-class";
 import { i18n } from "discourse-i18n";
-import { sendTestNotification } from "../lib/mobile-push-admin-api";
+import {
+  removeDevice,
+  sendTestNotification,
+} from "../lib/mobile-push-admin-api";
 import MobilePushTimestamp from "./mobile-push-timestamp";
 
 export default class MobilePushDeviceRow extends Component {
@@ -16,6 +19,7 @@ export default class MobilePushDeviceRow extends Component {
 
   @tracked result = null;
   @tracked sending = false;
+  @tracked removing = false;
 
   get removed() {
     return this.result?.outcome === "invalid_device";
@@ -54,6 +58,30 @@ export default class MobilePushDeviceRow extends Component {
     } finally {
       if (!this.isDestroying) {
         this.sending = false;
+      }
+    }
+  }
+
+  @action
+  confirmRemove() {
+    this.dialog.deleteConfirm({
+      message: i18n("discourse_mobile_push.admin.browser.confirm_remove", {
+        username: this.args.device.username,
+      }),
+      didConfirm: () => this.remove(),
+    });
+  }
+
+  async remove() {
+    this.removing = true;
+    try {
+      await removeDevice(this.args.device.id);
+      this.args.onRemoved();
+    } catch (error) {
+      popupAjaxError(error);
+    } finally {
+      if (!this.isDestroying) {
+        this.removing = false;
       }
     }
   }
@@ -128,6 +156,13 @@ export default class MobilePushDeviceRow extends Component {
             @action={{this.confirmSendTest}}
             @disabled={{this.sending}}
             @label="discourse_mobile_push.admin.browser.send_test"
+          />
+          <DButton
+            class="btn-danger mobile-push-device-row__remove"
+            @action={{this.confirmRemove}}
+            @disabled={{this.removing}}
+            @icon="trash-can"
+            @label="discourse_mobile_push.admin.browser.remove"
           />
         {{/unless}}
       </td>

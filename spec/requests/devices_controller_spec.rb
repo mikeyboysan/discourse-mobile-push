@@ -53,6 +53,35 @@ RSpec.describe DiscourseMobilePush::DevicesController do
       expect(response.status).to eq(404)
     end
 
+    it "ties the device to the User API key, so revoking the key stops delivery" do
+      api_key =
+        Fabricate(
+          :user_api_key,
+          user:,
+          scopes: [Fabricate.build(:user_api_key_scope, name: devices_scope)],
+        )
+
+      perform_request(headers: { "User-Api-Key" => api_key.key })
+
+      expect(DiscourseMobilePush::Device.last.user_api_key_id).to eq(api_key.id)
+
+      api_key.update!(revoked_at: Time.zone.now)
+
+      expect(DiscourseMobilePush::DeviceRegistry.new.devices_for(user:)).to be_empty
+    end
+
+    it "does not tie the device to an admin API key" do
+      api_key = Fabricate(:api_key, user:)
+
+      perform_request(headers: { "Api-Key" => api_key.key, "Api-Username" => user.username })
+
+      expect(response.status).to eq(201)
+      expect(DiscourseMobilePush::Device.last).to have_attributes(
+        user_api_key_id: nil,
+        user_auth_token_id: nil,
+      )
+    end
+
     context "when signed in" do
       before { sign_in(user) }
 
@@ -109,6 +138,18 @@ RSpec.describe DiscourseMobilePush::DevicesController do
         perform_request
 
         expect(response.status).to eq(422)
+      end
+
+      it "ties the device to the session, so logging out stops delivery" do
+        perform_request
+
+        device = DiscourseMobilePush::Device.last
+        expect(device.user_auth_token_id).to eq(UserAuthToken.find_by(user_id: user.id).id)
+
+        delete "/session/#{user.encoded_username}.json"
+
+        expect(UserAuthToken.exists?(device.user_auth_token_id)).to eq(false)
+        expect(DiscourseMobilePush::DeviceRegistry.new.devices_for(user:)).to be_empty
       end
 
       context "with rate limiting enabled" do

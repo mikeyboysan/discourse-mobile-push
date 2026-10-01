@@ -1,1 +1,9 @@
 * text=auto eol=lf
+
+/.agents export-ignore
+/.lattice export-ignore
+/AGENTS.md export-ignore
+/skills-lock.json export-ignore
+/bin export-ignore
+/docs/proposal.md export-ignore
+/docs/implementation-slices.md export-ignore

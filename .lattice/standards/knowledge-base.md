@@ -43,7 +43,7 @@ A generic, open-source Discourse plugin (a Rails engine loaded inside the Discou
 | Service-account OAuth | https://developers.google.com/identity/protocols/oauth2/service-account | JWT grant without gems |
 | Requirements | `docs/proposal.md` | Source proposal |
 
-**Example consumer**: `C:\Users\user\Dev\Tziburia` -- Flutter Android WebView app (`firebase_messaging`) for tziburia.co.za. Today it registers via the legacy `discourse-fcm-notifications` plugin (`GET /fcm_notifications/automatic_subscribe?token=` with session cookie from WebView JS) and opens notifications from `data.url` / `data.linked_obj_data`, requiring an absolute `https` URL on the forum host. It is the first migration target and the reference client stack is Flutter.
+**Example consumer**: a Flutter Android WebView app (`firebase_messaging`) for a Discourse forum, kept in a separate repository. Today it registers via the legacy `discourse-fcm-notifications` plugin (`GET /fcm_notifications/automatic_subscribe?token=` with session cookie from WebView JS) and opens notifications from `data.url` / `data.linked_obj_data`, requiring an absolute `https` URL on the forum host. It is the first migration target and the reference client stack is Flutter.
 
 ## 4. Project Structure
 

@@ -75,8 +75,35 @@ RSpec.describe DiscourseMobilePush::PayloadBuilder do
       expect(message).to have_attributes(title: "Test Forum", body: generic_body)
     end
 
-    it "keeps the navigation data" do
-      expect(build.data["url"]).to eq("http://test.localhost/t/hello/10/2")
+    it "keeps the identifiers" do
+      expect(build.data).to include("topic_id" => "10", "post_number" => "2", "post_id" => "20")
+    end
+
+    it "links to the post without the topic slug" do
+      expect(build.data["url"]).to eq("#{Discourse.base_url}/t/10/2")
+    end
+
+    it "links to the topic without a post number" do
+      expect(build(post_number: nil).data["url"]).to eq("#{Discourse.base_url}/t/10")
+    end
+
+    it "links to chat without the channel slug" do
+      message =
+        build(
+          notification_type: "chat_mention",
+          url: "http://test.localhost/chat/c/secret-plans/5/77",
+          topic_id: nil,
+          post_number: nil,
+          channel_id: 5,
+        )
+
+      expect(message.data["url"]).to eq("http://test.localhost/chat/c/-/5/77")
+    end
+
+    it "links to the site for other URLs" do
+      message = build(url: "http://test.localhost/badges/1/first-like", topic_id: nil)
+
+      expect(message.data["url"]).to eq(Discourse.base_url)
     end
   end
 

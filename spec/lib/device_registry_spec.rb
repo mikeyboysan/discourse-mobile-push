@@ -13,7 +13,33 @@ RSpec.describe DiscourseMobilePush::DeviceRegistry do
       token:,
       app_version: attrs.fetch(:app_version, "1.0.0"),
       device_identifier:,
+      user_api_key_id: attrs[:user_api_key_id],
+      user_auth_token_id: attrs[:user_auth_token_id],
     )
+  end
+
+  def signed_out_devices
+    revoked_key = Fabricate(:user_api_key, user:, revoked_at: 1.minute.ago)
+    expired_key = Fabricate(:user_api_key, user:, expires_at: 1.minute.ago)
+    expired_session = UserAuthToken.generate!(user_id: user.id)
+    expired_session.update_columns(rotated_at: (SiteSetting.maximum_session_age + 1).hours.ago)
+    [
+      Fabricate(:mobile_push_device, user:, user_api_key_id: revoked_key.id),
+      Fabricate(:mobile_push_device, user:, user_api_key_id: expired_key.id),
+      Fabricate(:mobile_push_device, user:, user_api_key_id: -1),
+      Fabricate(:mobile_push_device, user:, user_auth_token_id: expired_session.id),
+      Fabricate(:mobile_push_device, user:, user_auth_token_id: -1),
+    ]
+  end
+
+  def signed_in_devices
+    active_key = Fabricate(:user_api_key, user:)
+    session = UserAuthToken.generate!(user_id: user.id)
+    [
+      Fabricate(:mobile_push_device, user:),
+      Fabricate(:mobile_push_device, user:, user_api_key_id: active_key.id),
+      Fabricate(:mobile_push_device, user:, user_auth_token_id: session.id),
+    ]
   end
 
   describe "#register" do
@@ -82,6 +108,24 @@ RSpec.describe DiscourseMobilePush::DeviceRegistry do
 
       expect(DiscourseMobilePush::Device.exists?(stale.id)).to eq(false)
       expect(transferred.reload.user).to eq(user)
+    end
+
+    it "records the credential the device was registered with" do
+      result =
+        registry.register(
+          user:,
+          registration: registration(user_api_key_id: 11, user_auth_token_id: 22),
+        )
+
+      expect(result.device).to have_attributes(user_api_key_id: 11, user_auth_token_id: 22)
+    end
+
+    it "links an existing device to the credential of its latest registration" do
+      device = Fabricate(:mobile_push_device, user:, token: "token-1", user_api_key_id: 11)
+
+      registry.register(user:, registration: registration(user_auth_token_id: 22))
+
+      expect(device.reload).to have_attributes(user_api_key_id: nil, user_auth_token_id: 22)
     end
 
     it "keeps separate devices for registrations without a device identifier" do
@@ -156,6 +200,33 @@ RSpec.describe DiscourseMobilePush::DeviceRegistry do
       Fabricate(:mobile_push_device, user: other_user)
 
       expect(registry.devices_for(user:).to_a).to eq([newer, older])
+    end
+
+    it "leaves out devices whose credential was revoked, expired, or deleted" do
+      signed_out_devices
+      live = signed_in_devices
+
+      expect(registry.devices_for(user:)).to match_array(live)
+    end
+  end
+
+  describe "#remove_signed_out" do
+    it "removes only devices whose credential was revoked, expired, or deleted" do
+      signed_out_devices
+      live = signed_in_devices
+
+      expect(registry.remove_signed_out).to eq(5)
+      expect(DiscourseMobilePush::Device.all).to match_array(live)
+    end
+  end
+
+  describe "#remove" do
+    it "removes the device and reports whether it existed" do
+      device = Fabricate(:mobile_push_device)
+
+      expect(registry.remove(device:)).to eq(true)
+      expect(registry.remove(device:)).to eq(false)
+      expect(DiscourseMobilePush::Device.exists?(device.id)).to eq(false)
     end
   end
 

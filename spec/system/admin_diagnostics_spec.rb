@@ -75,6 +75,17 @@ RSpec.describe "Mobile push admin diagnostics" do
     end
   end
 
+  it "removes a device after confirmation" do
+    removed = Fabricate(:mobile_push_device, user:, last_seen_at: 1.hour.ago)
+    kept = Fabricate(:mobile_push_device, user:, last_seen_at: 2.hours.ago)
+
+    diagnostics_page.visit_page.remove(removed)
+
+    expect(diagnostics_page).to have_no_device(removed)
+    expect(diagnostics_page).to have_device(kept)
+    expect(DiscourseMobilePush::Device.exists?(removed.id)).to eq(false)
+  end
+
   context "when sending a test notification" do
     let!(:device) { Fabricate(:mobile_push_device, user:) }
 

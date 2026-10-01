@@ -17,3 +17,7 @@ export function fetchDevices({ username, page }) {
 export function sendTestNotification(deviceId) {
   return ajax(`${BASE_PATH}/devices/${deviceId}/test.json`, { type: "POST" });
 }
+
+export function removeDevice(deviceId) {
+  return ajax(`${BASE_PATH}/devices/${deviceId}.json`, { type: "DELETE" });
+}

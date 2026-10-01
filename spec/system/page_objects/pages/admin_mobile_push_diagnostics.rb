@@ -43,6 +43,12 @@ module PageObjects
         self
       end
 
+      def remove(device)
+        device_row(device).find(".mobile-push-device-row__remove").click
+        PageObjects::Components::Dialog.new.click_danger
+        self
+      end
+
       def has_test_result?(device, text)
         page.has_css?("#{row_selector(device)} .mobile-push-device-row__test-result", text:)
       end
