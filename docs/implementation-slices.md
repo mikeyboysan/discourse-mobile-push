@@ -11,7 +11,7 @@ The design these slices implement, and every decision taken while building them,
 | 3 | Notification dispatch (first end-to-end milestone) | Done | `99f4d5f` |
 | 4 | Admin diagnostics API and dashboard problem check | Done | `48767d3` |
 | 5 | Admin page (Ember) | Done | `112acfe` |
-| 6 | Documentation and release files | Done | (pending commit) |
+| 6 | Documentation and release files | Done | `8fdb37d` |
 
 Supporting commits outside the slices: `3eb3f52` (migrated-database snapshot for faster spec runs) and `a2a7ac4` (schema annotation on the `Device` model).
 
