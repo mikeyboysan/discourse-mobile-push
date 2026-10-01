@@ -45,3 +45,32 @@ module DiscourseMobilePush
     end
   end
 end
+
+# == Schema Information
+#
+# Table name: mobile_push_devices
+#
+#  id                  :bigint           not null, primary key
+#  app_version         :string
+#  device_identifier   :string
+#  last_delivered_at   :datetime
+#  last_failure_at     :datetime
+#  last_failure_reason :string
+#  last_seen_at        :datetime         not null
+#  platform            :string           not null
+#  token               :string           not null
+#  created_at          :datetime         not null
+#  updated_at          :datetime         not null
+#  app_id              :string           not null
+#  user_id             :integer          not null
+#
+# Indexes
+#
+#  idx_mobile_push_devices_on_user_app_device             (user_id,app_id,device_identifier) UNIQUE WHERE (device_identifier IS NOT NULL)
+#  index_mobile_push_devices_on_token                     (token) UNIQUE
+#  index_mobile_push_devices_on_user_id_and_last_seen_at  (user_id,last_seen_at)
+#
+# Foreign Keys
+#
+#  fk_rails_...  (user_id => users.id) ON DELETE => cascade
+#
