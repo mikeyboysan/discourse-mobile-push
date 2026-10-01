@@ -1,6 +1,6 @@
 ---
 feature: mobile-push-v1
-requirement_doc: "Proposed Generic Discourse Mobile Push Notification Plugin.md"
+requirement_doc: "docs/proposal.md"
 created: 2026-10-01
 status: approved
 ---
@@ -322,4 +322,4 @@ Device JSON: {id, platform, app_id, app_version, device_identifier, token_finger
 
 | Path | Role |
 |---|---|
-| `Proposed Generic Discourse Mobile Push Notification Plugin.md` | Source proposal (requirement doc) |
+| `docs/proposal.md` | Source proposal (requirement doc) |

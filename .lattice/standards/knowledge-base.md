@@ -41,7 +41,7 @@ A generic, open-source Discourse plugin (a Rails engine loaded inside the Discou
 | FCM errors | https://firebase.google.com/docs/reference/fcm/rest/v1/ErrorCode | Error classification |
 | FCM tokens | https://firebase.google.com/docs/cloud-messaging/manage-tokens | Staleness, invalidation |
 | Service-account OAuth | https://developers.google.com/identity/protocols/oauth2/service-account | JWT grant without gems |
-| Requirements | `Proposed Generic Discourse Mobile Push Notification Plugin.md` | Source proposal |
+| Requirements | `docs/proposal.md` | Source proposal |
 
 **Example consumer**: `C:\Users\user\Dev\Tziburia` -- Flutter Android WebView app (`firebase_messaging`) for tziburia.co.za. Today it registers via the legacy `discourse-fcm-notifications` plugin (`GET /fcm_notifications/automatic_subscribe?token=` with session cookie from WebView JS) and opens notifications from `data.url` / `data.linked_obj_data`, requiring an absolute `https` URL on the forum host. It is the first migration target and the reference client stack is Flutter.
 
@@ -59,7 +59,7 @@ db/migrate/                   # plugin migrations
 config/                       # settings.yml, routes.rb, locales/
 assets/javascripts/discourse/ # admin plugin page (route map, initializer, templates)
 spec/                         # requests/, models/, lib/, jobs/, fabricators/, system/
-docs/                         # architecture, firebase, mobile-api, troubleshooting
+docs/                         # proposal, architecture, firebase, mobile-api, troubleshooting
 ```
 
 ## 5. Project Conventions
